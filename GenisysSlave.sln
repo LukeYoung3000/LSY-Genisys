@@ -10,6 +10,11 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "GenisysSlave-UnitTests", "G
 		{FF6E29F9-C320-4FC4-B61B-7A3B3111C8F8} = {FF6E29F9-C320-4FC4-B61B-7A3B3111C8F8}
 	EndProjectSection
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "GenisysSlave-Simulator", "GenisysSlave-Simulator\GenisysSlave-Simulator.vcxproj", "{1F10DC74-587C-4F7C-B286-81758B983155}"
+	ProjectSection(ProjectDependencies) = postProject
+		{FF6E29F9-C320-4FC4-B61B-7A3B3111C8F8} = {FF6E29F9-C320-4FC4-B61B-7A3B3111C8F8}
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -34,6 +39,14 @@ Global
 		{06B072DB-F076-4A5C-B0AE-4D7D10C3FA8B}.Release|x64.Build.0 = Release|x64
 		{06B072DB-F076-4A5C-B0AE-4D7D10C3FA8B}.Release|x86.ActiveCfg = Release|Win32
 		{06B072DB-F076-4A5C-B0AE-4D7D10C3FA8B}.Release|x86.Build.0 = Release|Win32
+		{1F10DC74-587C-4F7C-B286-81758B983155}.Debug|x64.ActiveCfg = Debug|x64
+		{1F10DC74-587C-4F7C-B286-81758B983155}.Debug|x64.Build.0 = Debug|x64
+		{1F10DC74-587C-4F7C-B286-81758B983155}.Debug|x86.ActiveCfg = Debug|Win32
+		{1F10DC74-587C-4F7C-B286-81758B983155}.Debug|x86.Build.0 = Debug|Win32
+		{1F10DC74-587C-4F7C-B286-81758B983155}.Release|x64.ActiveCfg = Release|x64
+		{1F10DC74-587C-4F7C-B286-81758B983155}.Release|x64.Build.0 = Release|x64
+		{1F10DC74-587C-4F7C-B286-81758B983155}.Release|x86.ActiveCfg = Release|Win32
+		{1F10DC74-587C-4F7C-B286-81758B983155}.Release|x86.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
