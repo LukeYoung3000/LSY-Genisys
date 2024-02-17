@@ -7,10 +7,10 @@
 
 namespace LSY
 {
-	std::function<bool(std::string)> log_debug;
-	std::function<bool(std::string)> log_info;
-	std::function<bool(std::string)> log_warning;
-	std::function<bool(std::string)> log_error;
+	std::function<bool(std::string)> Logging::log_debug;
+	std::function<bool(std::string)> Logging::log_info;
+	std::function<bool(std::string)> Logging::log_warning;
+	std::function<bool(std::string)> Logging::log_error;
 
 	bool Logging::AddLogDebugFunc(std::function<bool(std::string)> func)
 	{
