@@ -9,6 +9,9 @@ using namespace LSY;
 cEvents::cEvents() : cFrame(nullptr)
 {
 
+	// Connect Idle Event
+	this->Bind(wxEVT_IDLE, &cEvents::IdleEvent, this);
+
 }
 
 void cEvents::GridClickEvent(wxGridEvent& event)
@@ -127,5 +130,13 @@ void cEvents::MenuHelpAboutOnMenuSelection(wxCommandEvent& event)
 
 	wxMessageBox(wxString(msg), "About", wxOK | wxICON_INFORMATION);
 
+	event.Skip();
+}
+
+
+void cEvents::IdleEvent(wxIdleEvent& event)
+{
+	//wxMessageBox("Yo", "IdleEvent Without Skip", wxOK | wxICON_INFORMATION);
+	//m_toggleStartStop->SetValue(!m_toggleStartStop->GetValue());
 	event.Skip();
 }

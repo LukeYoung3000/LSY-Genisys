@@ -1,7 +1,10 @@
 #include "cFrame.h"
 
+#include <wx/event.h>
+
 class cEvents : public cFrame
 {
+public:
 
 public:
 
@@ -10,6 +13,8 @@ public:
 	void StartStopServerEvent(wxCommandEvent& event) override;
 	void MenuHelpAboutOnMenuSelection(wxCommandEvent& event) override;
 
+
+	void IdleEvent(wxIdleEvent& event);
 
 
 };
