@@ -1,3 +1,4 @@
+#pragma once
 
 // STL
 #include <utility>
@@ -21,7 +22,6 @@ class cEvents : public cFrame
 public:
 
 	// UI States
-	std::atomic<bool> start_stop_server_request_;
 	int udp_rx_port_;
 	int udp_tx_port_;
 	int genisys_slave_id_;
