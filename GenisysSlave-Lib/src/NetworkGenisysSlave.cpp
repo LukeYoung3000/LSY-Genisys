@@ -69,6 +69,20 @@ namespace LSY
 			return false;
 		}
 
+
+
+		// Make Server Socket Non Blocking
+		u_long non_blocking_option = 1;
+		int result = ioctlsocket(server_socket_, FIONBIO, &non_blocking_option);
+		if (result == SOCKET_ERROR)
+		{
+			Logging::LogErrorF("NetworkGenisysSlave::StartServer: [%d] Socket Option Non Blocking Failed", configuration_.server_port_);
+			LogWSAError();
+			return false;
+		}
+
+
+
 		Logging::LogDebugF("NetworkGenisysSlave::StartServer: [%d] Server Started", configuration_.server_port_);
 		return true;
 	}

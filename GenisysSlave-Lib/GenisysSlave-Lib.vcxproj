@@ -20,6 +20,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\DataFrame.h" />
+    <ClInclude Include="include\GenisysSlave-Lib-Version.h" />
     <ClInclude Include="include\Logging.h" />
     <ClInclude Include="include\NetworkGenisysSlave.h" />
     <ClInclude Include="include\ProtocolGenisysSlave.h" />

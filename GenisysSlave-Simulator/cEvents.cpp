@@ -7,6 +7,7 @@
 #include <wx/app.h>
 
 // GenisysSlave-Lib
+#include "GenisysSlave-Lib-Version.h"
 #include "NetworkGenisysSlave.h"
 
 // GenisysSlave-Simulator
@@ -141,7 +142,8 @@ void cEvents::MenuHelpAboutOnMenuSelection(wxCommandEvent& event)
 	msg += "\n";
 	msg += "Author: Luke Young\n";
 	msg += "GitHub: LukeYoung3000\n";
-	msg += ("Version: " + std::string(version) + "\n");
+	msg += ("Version - Lib: " + std::string(genisys_slave_lib_version) + "\n");
+	msg += ("Version - App: " + std::string(version) + "\n");
 
 	wxMessageBox(wxString(msg), "About", wxOK | wxICON_INFORMATION);
 

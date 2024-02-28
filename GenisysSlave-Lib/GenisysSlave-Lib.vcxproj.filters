@@ -27,6 +27,9 @@
     <ClInclude Include="include\ProtocolGenisysSlave.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="include\GenisysSlave-Lib-Version.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\DataFrame.cpp">
