@@ -26,7 +26,7 @@ bool LogError(const std::string& log_msg);
 
 int main()
 {
-
+	 
 	// Add Logging Functions To "GenisysSlave-Lib"
 	Logging::AddLogDebugFunc(LogDebug);
 	Logging::AddLogInfoFunc(LogInfo);

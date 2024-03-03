@@ -17,6 +17,13 @@
 #include "cFrame.h"
 
 
+// Logging Functions
+bool LogDebug(const std::string& log_msg);
+bool LogInfo(const std::string& log_msg);
+bool LogWarning(const std::string& log_msg);
+bool LogError(const std::string& log_msg);
+
+
 class cEvents : public cFrame
 {
 public:

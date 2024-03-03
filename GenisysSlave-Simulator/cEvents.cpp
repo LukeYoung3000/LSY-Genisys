@@ -1,6 +1,7 @@
 
 // STL
 #include <chrono>
+#include <sstream> 
 
 // wxWidgets
 #include <wx/msgdlg.h>
@@ -46,6 +47,11 @@ cEvents::cEvents() : cFrame(nullptr)
 	wxLog::SetActiveTarget(logger);
 	wxLogNull no_log;
 	
+	// Add Logging Functions To "GenisysSlave-Lib"
+	Logging::AddLogDebugFunc(LogDebug);
+	Logging::AddLogInfoFunc(LogInfo);
+	Logging::AddLogWarningFunc(LogWarning);
+	Logging::AddLogErrorFunc(LogError);
 
 	// Connect Idle Event
 	//this->Bind(wxEVT_IDLE, &cEvents::IdleEvent, this);
@@ -125,7 +131,7 @@ void cEvents::GridClickEvent(wxGridEvent& event)
 		else
 			bit_value_ = true;
 		byte_offset_ = coord.GetRow();
-		bit_offset_ = coord.GetCol();
+		bit_offset_ = 7 - coord.GetCol();
 		bit_write_request_ = true;
 	}
 
@@ -312,7 +318,7 @@ void cEvents::RunningloopGenisysNetwork()
 
 				// Update The wxWidgets GUI On GUI Thread
 				int row = (int)byte_offset_;
-				int col = (int)bit_offset_;
+				int col = 7 - (int)bit_offset_;
 				bool val = (bool)bit_value_;
 				wxGetApp().CallAfter([this, row, col, val]()
 					{
@@ -353,4 +359,54 @@ void cEvents::RunningloopGenisysNetwork()
 		std::this_thread::sleep_for(50ms);
 	}
 
+}
+
+
+
+bool LogDebug(const std::string& log_msg)
+{
+	std::stringstream ss;
+
+	auto time_now = std::chrono::system_clock::now();
+	ss << std::chrono::system_clock::to_time_t(time_now);
+	ss << ",DEBUG," << log_msg << std::endl;
+
+	wxLogMessage(wxString(ss.str()));
+	return true;
+}
+
+bool LogInfo(const std::string& log_msg)
+{
+	std::stringstream ss;
+
+	auto time_now = std::chrono::system_clock::now();
+	ss << std::chrono::system_clock::to_time_t(time_now);
+	ss << ",INFO," << log_msg << std::endl;
+
+	wxLogMessage(wxString(ss.str()));
+	return true;
+}
+
+bool LogWarning(const std::string& log_msg)
+{
+	std::stringstream ss;
+
+	auto time_now = std::chrono::system_clock::now();
+	ss << std::chrono::system_clock::to_time_t(time_now);
+	ss << ",WARNING," << log_msg << std::endl;
+
+	wxLogMessage(wxString(ss.str()));
+	return true;
+}
+
+bool LogError(const std::string& log_msg)
+{
+	std::stringstream ss;
+
+	auto time_now = std::chrono::system_clock::now();
+	ss << std::chrono::system_clock::to_time_t(time_now);
+	ss << ",ERROR," << log_msg << std::endl;
+
+	wxLogMessage(wxString(ss.str()));
+	return true;
 }

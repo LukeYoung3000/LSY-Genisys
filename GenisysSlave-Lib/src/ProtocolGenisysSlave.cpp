@@ -214,7 +214,7 @@ namespace LSY
 				// Calculate CRC
 				uint8_t crc_low = 0;
 				uint8_t crc_high = 0;
-				if (!CalculateCRC(gen_msg_buffer, &crc_low, &crc_high))
+				if (!CalculateCRC(gen_msg_responce, &crc_low, &crc_high))
 					return false;
 					
 				gen_msg_responce.push_back((uint8_t)crc_low);
@@ -268,12 +268,12 @@ namespace LSY
 
 			// Mode Byte (From Example)
 			gen_msg_responce.push_back(0xE0);
-			gen_msg_responce.push_back(0x05);
+			gen_msg_responce.push_back(0x04);
 
 			// Calculate CRC
 			uint8_t crc_low = 0;
 			uint8_t crc_high = 0;
-			if (!CalculateCRC(gen_msg_buffer, &crc_low, &crc_high))
+			if (!CalculateCRC(gen_msg_responce, &crc_low, &crc_high))
 				return false;
 
 			gen_msg_responce.push_back(crc_low);
