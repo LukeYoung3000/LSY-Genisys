@@ -18,7 +18,7 @@
     <ClInclude Include="include\DataFrame.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\Logging.h">
+    <ClInclude Include="include\GenisysSlave-Lib-Logging.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="include\NetworkGenisysSlave.h">
@@ -35,7 +35,7 @@
     <ClCompile Include="src\DataFrame.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\Logging.cpp">
+    <ClCompile Include="src\GenisysSlave-Lib-Logging.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\NetworkGenisysSlave.cpp">

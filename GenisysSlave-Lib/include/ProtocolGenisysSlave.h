@@ -4,7 +4,7 @@
 #include <map>
 #include <memory>
 
-#include "Logging.h"
+#include "GenisysSlave-Lib-Logging.h"
 #include "DataFrame.h"
 
 

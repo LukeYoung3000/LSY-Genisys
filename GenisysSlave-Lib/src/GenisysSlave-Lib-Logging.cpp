@@ -2,7 +2,7 @@
 #include <chrono>
 #include <iostream>
 
-#include "Logging.h"
+#include "GenisysSlave-Lib-Logging.h"
 
 
 namespace LSY

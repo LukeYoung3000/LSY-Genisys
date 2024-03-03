@@ -109,7 +109,7 @@ namespace LSY
 
 			if (*i == GEN_MSG_TYPE_END_MSG)
 			{
-				std::vector<uint8_t> msg(start_msg_itr, i);
+				std::vector<uint8_t> msg(start_msg_itr, (i+1));
 				input_messages.push_back(msg);
 				end_msg_found = true;
 			}
@@ -419,8 +419,11 @@ namespace LSY
 
 	void ProtocolGenisysSlave::LogGenisysMsg(const std::vector<uint8_t> & gen_msg_buffer)
 	{
-		char log_msg_buffer[300];
-		size_t log_msg_buffer_size = 280;
+		// To Do: Size check log_msg_buffer
+		// This will caase a crash if a large enough "gen_msg_buffer" is received.
+
+		char log_msg_buffer[1000];
+		size_t log_msg_buffer_size = 980;
 
 		sprintf_s(log_msg_buffer, log_msg_buffer_size, "GENISYS MESSAGE HEX: ");
 		for (int i = 0; i < gen_msg_buffer.size(); i++)

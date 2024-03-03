@@ -294,7 +294,7 @@ void cEvents::RunningloopGenisysNetwork()
 	{
 
 		loop_cnt++;
-		wxLogMessage("cEvents::RunningloopGenisysNetwork: Loop %d", loop_cnt);
+		//wxLogMessage("cEvents::RunningloopGenisysNetwork: Loop %d", loop_cnt);
 
 		
 		// Check If Thread Is Requested To Stop From GUI

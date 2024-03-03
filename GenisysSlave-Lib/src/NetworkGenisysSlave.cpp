@@ -109,6 +109,10 @@ namespace LSY
 		// Check For Any Receive Errors
 		if (bytes_received == SOCKET_ERROR)
 		{
+			// To Do: Now That Socket In Non Blocking We Should Check For "WSAEWOULDBLOCK" Here.
+			return false;
+
+			// Old Code:
 			// No Data Received Or An Error Was Found
 			Logging::LogErrorF("NetworkGenisysSlave::ServerLoop: [%d] No Data Received", configuration_.server_port_);
 			LogWSAError();

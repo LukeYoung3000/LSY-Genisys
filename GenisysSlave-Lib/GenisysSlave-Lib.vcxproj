@@ -21,13 +21,13 @@
   <ItemGroup>
     <ClInclude Include="include\DataFrame.h" />
     <ClInclude Include="include\GenisysSlave-Lib-Version.h" />
-    <ClInclude Include="include\Logging.h" />
+    <ClInclude Include="include\GenisysSlave-Lib-Logging.h" />
     <ClInclude Include="include\NetworkGenisysSlave.h" />
     <ClInclude Include="include\ProtocolGenisysSlave.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\DataFrame.cpp" />
-    <ClCompile Include="src\Logging.cpp" />
+    <ClCompile Include="src\GenisysSlave-Lib-Logging.cpp" />
     <ClCompile Include="src\NetworkGenisysSlave.cpp" />
     <ClCompile Include="src\ProtocolGenisysSlave.cpp" />
   </ItemGroup>

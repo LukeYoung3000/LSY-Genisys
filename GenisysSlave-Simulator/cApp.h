@@ -7,7 +7,6 @@
 // GenisysSlave-Simulator
 #include "cEvents.h"
 
-
 class cApp : public wxApp
 {
 public:

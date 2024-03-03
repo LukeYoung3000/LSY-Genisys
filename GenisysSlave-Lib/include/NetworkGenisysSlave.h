@@ -10,7 +10,7 @@
 #include <WinSock2.h>
 
 // LSY
-#include "Logging.h"
+#include "GenisysSlave-Lib-Logging.h"
 #include "ProtocolGenisysSlave.h"
 
 
