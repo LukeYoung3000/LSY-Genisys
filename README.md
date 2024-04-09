@@ -65,4 +65,4 @@ C++, Winsock, wxWidgets (wxFormBuilder), Genisys Lib, Visual Studio 2022 Solutio
 
 
 <!-- MARKDOWN LINKS & IMAGES -->
-[product-screenshot]: docs/screenshot.png
+[product-screenshot]: docs/screenshot.PNG
