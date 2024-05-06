@@ -20,6 +20,7 @@
 #define GEN_MSG_TYPE_END_MSG	(uint8_t)0xF6
 #define GEN_MSG_TYPE_ACK_SLAVE	(uint8_t)0xFA
 #define GEN_MSG_TYPE_POLL		(uint8_t)0xFB
+#define GEN_MSG_TYPE_CONTROL	(uint8_t)0xFC
 #define GEN_MSG_TYPE_RECALL		(uint8_t)0xFD
 
 
@@ -29,7 +30,7 @@
 
 // Note: Genisys Control & Indication Byte Numbers 244 - 255 Are Reserved For Status Information.
 #define GEN_MAX_BYTES (uint8_t)223
-
+#define GEN_MODE_BYTE (uint8_t)0xE0
 
 
 namespace LSY
@@ -278,6 +279,87 @@ namespace LSY
 
 			gen_msg_responce.push_back(crc_low);
 			gen_msg_responce.push_back(crc_high);
+		}
+
+
+
+		else if (msg_type == GEN_MSG_TYPE_CONTROL)
+		{
+	
+			// Check: Message Should Be At Least 7 Bytes Long
+			if (gen_msg_buffer.size() < 7)
+			{
+				// Error - Control Message Should Be 7 Bytes Long Or More
+				return false;
+			}
+			
+			// Check: Message Should Have An Odd Number Of Bytes
+			if ((gen_msg_buffer.size() % 2) != 1)
+			{
+				// Error - Control Message Should Contain An Odd Number Of Bytes
+				return false;
+			}
+			
+			// Remove Message Byte & Slave ID Byte (First 2 Bytes)
+			gen_msg_buffer.erase(gen_msg_buffer.begin());
+			gen_msg_buffer.erase(gen_msg_buffer.begin());
+
+			// Remove End Of Message Byte
+			// This Has Been Check As "F6" In IsMasterMessageValid()
+			gen_msg_buffer.pop_back();
+
+			// Get CRC Bytes From Last 2 Chars
+			crc_high = gen_msg_buffer.back(); gen_msg_buffer.pop_back();
+			crc_low = gen_msg_buffer.back(); gen_msg_buffer.pop_back();
+			
+
+			// Control Bytes And Values
+			// Loop Through Remaining Data And Save Updates
+			std::vector<uint64_t> byte_offsets;
+			std::vector<uint8_t> values;
+			for (int i = 0; i < gen_msg_buffer.size(); i++)
+			{
+				if (i % 2)	
+				{
+					// Odd Number Index
+					values.push_back(gen_msg_buffer[i]);
+				}
+					
+				else
+				{
+					// Even Number Index
+					byte_offsets.push_back(gen_msg_buffer[i]);
+				}		
+			}
+
+
+			// Check For Mode Byte & Mode Byte Value
+			// Note: Mode Bytes Will Be At The End, Maybe Loop From Back To Front
+			uint8_t mode_byte_value = 0;
+			for (int i = 0; i < values.size(); i++)
+			{
+				if (byte_offsets[i] == GEN_MODE_BYTE)
+				{
+					mode_byte_value = values[i];
+					byte_offsets.erase(byte_offsets.begin() + i);	// Remove Mode Byte From byte_offsets
+					values.erase(values.begin() + i);				// Remove Mode Byte From values
+					break;
+				}
+			}
+
+
+			// To Do: Create This Function
+			if (!data_frames[slave_address_from_master]->UpdateControlTable(byte_offsets, values))
+			{
+				// Warning
+				Logging::LogWarningF("ProtocolGenisysSlave::ProcessMessage: Failed To Update Controls For Slave ID [%d]", slave_address_from_master);
+				return false;
+			}
+
+
+			// Construct Responce Message
+
+
 		}
 
 
