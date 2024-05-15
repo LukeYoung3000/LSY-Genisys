@@ -36,21 +36,28 @@
 namespace LSY
 {
 
-	bool ProtocolGenisysSlave::AddDataFrame(uint8_t slave_id, std::shared_ptr<DataFrame> & data_frame_obj)
+	bool ProtocolGenisysSlave::AddDataFrame(uint8_t slave_id, bool is_control_frame, std::shared_ptr<DataFrame> & data_frame_obj)
 	{
+		std::map<uint8_t, std::shared_ptr<DataFrame>> & data_frames = indication_data_frames;
+		if (is_control_frame)
+			data_frames = control_data_frames;
+
 
 		if (slave_id == 0 || data_frames.count(slave_id))
 		{
-			Logging::LogErrorF("ProtocolGenisysSlave::AddDataFrame: Invalid/Duplicate Slave ID [%d]", slave_id);
+			Logging::LogErrorF("ProtocolGenisysSlave::AddDataFrame: Invalid/Duplicate Slave ID [%d] (Is Control Frame = [%d])", slave_id, is_control_frame);
 			return false;
 		}
 
 		uint64_t table_size = data_frame_obj->GetNumBytes();
 		if (table_size > GEN_MAX_BYTES)
 		{
-			Logging::LogErrorF("ProtocolGenisysSlave::AddDataFrame: Table Size Is Too Large [%d] Slave ID [%d]", table_size, slave_id);
+			Logging::LogErrorF("ProtocolGenisysSlave::AddDataFrame: Table Size Is Too Large [%d] Slave ID [%d] (Is Control Frame = [%d])", table_size, slave_id, is_control_frame);
 			return false;
 		}
+
+		// To Do - Check that "data_frame_obj" raw pointer is not already used in
+		// "indication_data_frames" or "control_data_frames".
 
 		data_frames[slave_id] = data_frame_obj;
 		return true;
@@ -157,7 +164,7 @@ namespace LSY
 
 
 		// Check That Slave Address From Master Exists In Stored DataFrames
-		if (!data_frames.count(slave_address_from_master))
+		if (!indication_data_frames.count(slave_address_from_master) && !control_data_frames.count(slave_address_from_master))
 		{
 			// Disregard Message As The Slave ID Doesn't Match
 			// To Do: Check For Broadcast Slave ID 0
@@ -183,7 +190,7 @@ namespace LSY
 			// Check For Table Updates
 			std::vector<uint64_t> byte_offsets;
 			std::vector<uint8_t> values;
-			if (!data_frames[slave_address_from_master]->GetUpdates(byte_offsets, values))
+			if (!indication_data_frames[slave_address_from_master]->GetUpdates(byte_offsets, values))
 			{
 				// Warning
 				Logging::LogWarningF("ProtocolGenisysSlave::ProcessMessage: Failed To Get Data Updates For Slave ID [%d]", slave_address_from_master);
@@ -232,7 +239,7 @@ namespace LSY
 
 			// Notify User Code That The Master Has Received Our Last Update
 			// We Can Reset Our User Updates Now
-			data_frames[slave_address_from_master]->DataAck();
+			indication_data_frames[slave_address_from_master]->DataAck();
 
 			// Send "Acknowledge Master Message" Back To Master
 			gen_msg_responce.push_back(GEN_MSG_TYPE_ACK_MASTER);
@@ -249,7 +256,7 @@ namespace LSY
 			// Get All Data From User Code
 			std::vector<uint64_t> byte_offsets;
 			std::vector<uint8_t> values;
-			if(!data_frames[slave_address_from_master]->GetUpdates(byte_offsets, values, true))
+			if(!indication_data_frames[slave_address_from_master]->GetUpdates(byte_offsets, values, true))
 			{
 				// Warning
 				Logging::LogWarningF("ProtocolGenisysSlave::ProcessMessage: Failed To Get Data Updates For Slave ID [%d]", slave_address_from_master);
@@ -287,6 +294,7 @@ namespace LSY
 		{
 	
 			// Check: Message Should Be At Least 7 Bytes Long
+			// FC SLAVE_ID MODE_BYTE_OFFSET MODE_BYTE_VALUE CRC_LOW CRC_HIGH F6
 			if (gen_msg_buffer.size() < 7)
 			{
 				// Error - Control Message Should Be 7 Bytes Long Or More
@@ -309,6 +317,7 @@ namespace LSY
 			gen_msg_buffer.pop_back();
 
 			// Get CRC Bytes From Last 2 Chars
+			// To Do: Should Check CRC Is Correct
 			crc_high = gen_msg_buffer.back(); gen_msg_buffer.pop_back();
 			crc_low = gen_msg_buffer.back(); gen_msg_buffer.pop_back();
 			
@@ -348,17 +357,29 @@ namespace LSY
 			}
 
 
-			// To Do: Create This Function
-			if (!data_frames[slave_address_from_master]->UpdateControlTable(byte_offsets, values))
+
+			// To Do: Create A Different "WriteBytes" Function For The The Interface To Genisys Protocol
+			for (int i = 0; i < values.size(); i++)
 			{
-				// Warning
-				Logging::LogWarningF("ProtocolGenisysSlave::ProcessMessage: Failed To Update Controls For Slave ID [%d]", slave_address_from_master);
-				return false;
+				if (!control_data_frames[slave_address_from_master]->WriteByte(byte_offsets[i], values[i]))
+				{
+					// Warning
+					Logging::LogWarningF("ProtocolGenisysSlave::ProcessMessage: Failed To Write Controls For Slave ID [%d]", slave_address_from_master);
+					return false;
+				}
 			}
 
 
-			// Construct Responce Message
 
+			// Construct Responce Message
+			// Slave responce format regardless of how many bytes recieved
+			// FC SLAVE_ID MODE_BYTE_OFFSET MODE_BYTE_VALUE CRC_LOW CRC_HIGH F6
+
+			// Master Ack Slave :
+			// Example: fa52c35df6
+
+			// Slave Ack Master :
+			// Exampe: f152f6
 
 		}
 

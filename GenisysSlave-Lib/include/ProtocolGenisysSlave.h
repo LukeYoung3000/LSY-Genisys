@@ -14,11 +14,12 @@ namespace LSY
 	class ProtocolGenisysSlave
 	{
 	private:
-		std::map<uint8_t, std::shared_ptr<DataFrame>> data_frames;
+		std::map<uint8_t, std::shared_ptr<DataFrame>> indication_data_frames;
+		std::map<uint8_t, std::shared_ptr<DataFrame>> control_data_frames;
 		std::vector<std::vector<uint8_t>> input_messages;
 
 	public: // User API
-		bool AddDataFrame(uint8_t slave_id, std::shared_ptr<DataFrame> & data_frame_obj);
+		bool AddDataFrame(uint8_t slave_id, bool is_control_frame, std::shared_ptr<DataFrame> & data_frame_obj);
 
 	public: // Interface To Transport/Network Layers
 		bool ProcessMessages(std::vector<uint8_t> & data_buffer);
