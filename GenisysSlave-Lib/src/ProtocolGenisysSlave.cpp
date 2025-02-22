@@ -32,18 +32,23 @@
 #define GEN_MAX_BYTES (uint8_t)223
 #define GEN_MODE_BYTE (uint8_t)0xE0
 
+// Note: The mode byte return is normally based on internal settings
+// withen the slave device. This is a temp hard coded value to use before the settings
+// feature is implemented.
+#define GEN_MODE_BYTE_RETURN_VALUE (uint8_t)0x04
+
 
 namespace LSY
 {
 
 	bool ProtocolGenisysSlave::AddDataFrame(uint8_t slave_id, bool is_control_frame, std::shared_ptr<DataFrame> & data_frame_obj)
 	{
-		std::map<uint8_t, std::shared_ptr<DataFrame>> & data_frames = indication_data_frames;
+		std::map<uint8_t, std::shared_ptr<DataFrame>> * data_frames = &indication_data_frames;
 		if (is_control_frame)
-			data_frames = control_data_frames;
+			data_frames = &control_data_frames;
 
 
-		if (slave_id == 0 || data_frames.count(slave_id))
+		if (slave_id == 0 || data_frames->count(slave_id))
 		{
 			Logging::LogErrorF("ProtocolGenisysSlave::AddDataFrame: Invalid/Duplicate Slave ID [%d] (Is Control Frame = [%d])", slave_id, is_control_frame);
 			return false;
@@ -59,7 +64,7 @@ namespace LSY
 		// To Do - Check that "data_frame_obj" raw pointer is not already used in
 		// "indication_data_frames" or "control_data_frames".
 
-		data_frames[slave_id] = data_frame_obj;
+		(*data_frames)[slave_id] = data_frame_obj;
 		return true;
 	}
 
@@ -275,8 +280,8 @@ namespace LSY
 			}
 
 			// Mode Byte (From Example)
-			gen_msg_responce.push_back(0xE0);
-			gen_msg_responce.push_back(0x04);
+			gen_msg_responce.push_back(GEN_MODE_BYTE);
+			gen_msg_responce.push_back(GEN_MODE_BYTE_RETURN_VALUE);
 
 			// Calculate CRC
 			uint8_t crc_low = 0;
@@ -373,13 +378,28 @@ namespace LSY
 
 			// Construct Responce Message
 			// Slave responce format regardless of how many bytes recieved
-			// FC SLAVE_ID MODE_BYTE_OFFSET MODE_BYTE_VALUE CRC_LOW CRC_HIGH F6
+			// F2 SLAVE_ID MODE_BYTE_OFFSET MODE_BYTE_VALUE CRC_LOW CRC_HIGH F6
 
 			// Master Ack Slave :
 			// Example: fa52c35df6
 
 			// Slave Ack Master :
 			// Exampe: f152f6
+
+			// Construct Responce Message
+			gen_msg_responce.push_back(GEN_MSG_TYPE_IND_RESP);
+			gen_msg_responce.push_back(slave_address_from_master);
+			gen_msg_responce.push_back(GEN_MODE_BYTE);
+			gen_msg_responce.push_back(GEN_MODE_BYTE_RETURN_VALUE);
+
+			// Calculate CRC
+			uint8_t crc_low = 0;
+			uint8_t crc_high = 0;
+			if (!CalculateCRC(gen_msg_responce, &crc_low, &crc_high))
+				return false;
+
+			gen_msg_responce.push_back(crc_low);
+			gen_msg_responce.push_back(crc_high);
 
 		}
 

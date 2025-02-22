@@ -52,11 +52,15 @@ int main()
 	Logging::LogInfoF("Port TX   [%d]", port_tx);
 
 	// Data Frame Setup
-	std::shared_ptr<DataFrame> data_1 = std::make_shared<DataFrame>("Genisys Slave 1", num_bytes);
+	std::shared_ptr<DataFrame> data_ind = std::make_shared<DataFrame>("Genisys Slave 1 Indications", num_bytes);
+	std::shared_ptr<DataFrame> data_ctrl = std::make_shared<DataFrame>("Genisys Slave 1 Controls", num_bytes);
 
 	// Protocol Setup
 	std::shared_ptr<ProtocolGenisysSlave> protocol = std::make_shared<ProtocolGenisysSlave>();
-	protocol->AddDataFrame(slave_id, data_1);
+	protocol->AddDataFrame(slave_id, true, data_ctrl);
+	protocol->AddDataFrame(slave_id, false, data_ind);
+	
+
 
 	// Network Configuration
 	NetworkGenisysSlave::Config network_config;
