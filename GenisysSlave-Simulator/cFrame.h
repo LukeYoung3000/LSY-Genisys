@@ -54,6 +54,8 @@ class cFrame : public wxFrame
 		wxToggleButton* m_toggleStartStop;
 		wxStaticText* m_staticText11;
 		wxGrid* m_grid3;
+		wxStaticText* m_staticText111;
+		wxGrid* m_grid31;
 		wxMenuBar* m_menubar3;
 		wxMenu* MenuHelp;
 
@@ -65,7 +67,7 @@ class cFrame : public wxFrame
 
 	public:
 
-		cFrame( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxT("Genisys UDP Slave Application - Indications Only"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 520,600 ), long style = wxDEFAULT_FRAME_STYLE|wxTAB_TRAVERSAL );
+		cFrame( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxT("Genisys UDP Slave Application"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 845,600 ), long style = wxDEFAULT_FRAME_STYLE|wxTAB_TRAVERSAL );
 
 		~cFrame();
 

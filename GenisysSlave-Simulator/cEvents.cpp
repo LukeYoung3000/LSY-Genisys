@@ -71,8 +71,15 @@ void cEvents::StartStopServerEvent(wxCommandEvent& event)
 			m_grid3->Enable(true);
 
 			// Setup Grid Size Based On Genisys Slave DB Bits
+
+			// Indications Grid
 			m_grid3->DeleteRows(0, m_grid3->GetNumberRows());
 			m_grid3->AppendRows(genisys_frame_size_);
+
+			// Controls Grid
+			m_grid31->DeleteRows(0, m_grid31->GetNumberRows());
+			m_grid31->AppendRows(genisys_frame_size_);
+
 
 			// Setup Grid Values Based On Genisys Slave DB Bits
 			// Note: For Now Just Assume 0
@@ -80,8 +87,13 @@ void cEvents::StartStopServerEvent(wxCommandEvent& event)
 			{
 				for (int j = 0; j < 8; j++)
 				{
+					// Indications
 					m_grid3->SetCellValue(wxGridCellCoords(i, j), "0");
 					m_grid3->SetCellBackgroundColour(i, j, *wxRED);
+
+					// Controls
+					m_grid31->SetCellValue(wxGridCellCoords(i, j), "0");
+					m_grid31->SetCellBackgroundColour(i, j, *wxRED);
 				}
 			}
 
@@ -215,11 +227,13 @@ bool cEvents::StartupGenisysNetwork()
 	// Setup Genisys UDP Slave
 
 	// Data Frame Setup
-	data_frame_1_ = std::make_shared<DataFrame>("Genisys Slave 1", genisys_frame_size_);
+	data_frame_1_ = std::make_shared<DataFrame>("Genisys Slave 1 Indications", genisys_frame_size_);
+	data_frame_2_ = std::make_shared<DataFrame>("Genisys Slave 1 Controls", genisys_frame_size_);
 
 	// Protocol Setup
 	protocol_ = std::make_shared<ProtocolGenisysSlave>();
-	if (!protocol_->AddDataFrame(genisys_slave_id_, data_frame_1_))
+	if (!protocol_->AddDataFrame(genisys_slave_id_, false, data_frame_1_) || \
+		!protocol_->AddDataFrame(genisys_slave_id_, true, data_frame_2_) )
 	{
 		// Error: Data Frame Issue
 		wxLogMessage("cEvents::StartupGenisysNetwork: Protocol Setup Error");
@@ -280,6 +294,7 @@ void cEvents::ShutdownGenisysNetwork()
 	network_->ShutdownServer();
 
 	data_frame_1_.reset();
+	data_frame_2_.reset();
 	protocol_.reset();
 	network_.reset();
 
@@ -310,7 +325,7 @@ void cEvents::RunningloopGenisysNetwork()
 		}
 
 
-		// Check If GUI Has Updated A Bit Value In The Table
+		// Check If GUI Has Updated A Bit Value In The Indication Table
 		if (bit_write_request_)
 		{
 			if (data_frame_1_->WriteBit(byte_offset_, bit_offset_, bit_value_))
@@ -351,6 +366,58 @@ void cEvents::RunningloopGenisysNetwork()
 			bit_write_request_ = false;
 
 		}
+
+
+
+
+		// Update The Control Table In The GUI
+		// Note: Currently this is not effiencent.
+		// Would be better to detect the values that have change and only update the changes. 
+
+		for (int i = 0; i < data_frame_2_->GetNumBytes(); i++)
+		{
+
+			int row = i;
+			uint8_t byte_val = 0;
+			data_frame_2_->ReadByte(i, byte_val);
+
+			wxGetApp().CallAfter([this, row, byte_val]()
+				{
+
+					// Loop Through Columns In The Row
+					for (int j = 0; j < 8; j++)
+					{
+						int col = j;
+						int bit_offset = 7 - col;
+
+						// Extract the bit value from the byte
+						uint8_t mask = 1 << bit_offset;
+						uint8_t temp_byte = byte_val & mask;
+						temp_byte = temp_byte >> bit_offset;
+						bool bit_val = temp_byte;
+
+						// Update The Cell In The GUI
+						wxGridCellCoords coord = wxGridCellCoords(row, col);
+						if (bit_val)
+						{
+							this->m_grid3->SetCellValue(coord, wxString("1"));
+							this->m_grid3->SetCellBackgroundColour(coord.GetRow(), coord.GetCol(), *wxGREEN);
+						}
+						else
+						{
+							this->m_grid3->SetCellValue(coord, wxString("0"));
+							this->m_grid3->SetCellBackgroundColour(coord.GetRow(), coord.GetCol(), *wxRED);
+						}
+					}
+
+
+				});
+
+		}
+
+
+
+
 
 		// Run Server Loop
 		// To Do: Make This Nonblocking

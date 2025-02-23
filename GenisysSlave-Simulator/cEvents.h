@@ -46,6 +46,7 @@ public:
 	std::atomic<bool> stop_thread_;
 	std::thread network_thread_;
 	std::shared_ptr<LSY::DataFrame> data_frame_1_;
+	std::shared_ptr<LSY::DataFrame> data_frame_2_;
 	std::shared_ptr<LSY::ProtocolGenisysSlave> protocol_;
 	std::shared_ptr <LSY::NetworkGenisysSlave> network_;
 
