@@ -38,12 +38,13 @@ cEvents::cEvents() : cFrame(nullptr)
 
 	// Genisys Slave
 	data_frame_1_ = nullptr;
+	data_frame_2_ = nullptr;
 	protocol_ = nullptr;
 	network_ = nullptr;
 
 
 	// Setup Logging
-	logger = new wxLogWindow(this, "Log", true, false);
+	logger = new wxLogWindow(this, "Log", false, false);
 	wxLog::SetActiveTarget(logger);
 	wxLogNull no_log;
 	
@@ -57,6 +58,16 @@ cEvents::cEvents() : cFrame(nullptr)
 	//this->Bind(wxEVT_IDLE, &cEvents::IdleEvent, this);
 }
 
+void cEvents::TopLevelWindowCloseEvent(wxCloseEvent& event)
+{
+	// Shut Down Network Coms
+	ShutdownGenisysNetwork();
+
+	// Turn Logging Off
+	event.SetLoggingOff(true);
+
+	event.Skip();
+}
 
 void cEvents::StartStopServerEvent(wxCommandEvent& event)
 {
@@ -69,6 +80,7 @@ void cEvents::StartStopServerEvent(wxCommandEvent& event)
 		{
 			// Enable User Controls On The Grid
 			m_grid3->Enable(true);
+			m_grid31->Enable(true);
 
 			// Setup Grid Size Based On Genisys Slave DB Bits
 
@@ -103,6 +115,7 @@ void cEvents::StartStopServerEvent(wxCommandEvent& event)
 		{
 			// Disable User Controls On The Grid
 			m_grid3->Enable(false);
+			m_grid31->Enable(false);
 
 			// Set Start/Stop Button State
 			m_toggleStartStop->SetValue(false);
@@ -116,6 +129,7 @@ void cEvents::StartStopServerEvent(wxCommandEvent& event)
 
 		// Disable User Controls On The Grid
 		m_grid3->Enable(false);
+		m_grid31->Enable(false);
 
 		ShutdownGenisysNetwork();
 	}
@@ -165,11 +179,16 @@ void cEvents::MenuHelpAboutOnMenuSelection(wxCommandEvent& event)
 
 	wxMessageBox(wxString(msg), "About", wxOK | wxICON_INFORMATION);
 
-	logger->Show();
-
 	event.Skip();
 }
 
+
+void cEvents::MenuHelpLogOnMenuSelection(wxCommandEvent& event)
+{
+	// Show the log window
+	logger->Show();
+	event.Skip();
+}
 
 void cEvents::IdleEvent(wxIdleEvent& event)
 {
@@ -291,12 +310,20 @@ void cEvents::ShutdownGenisysNetwork()
 		stop_thread_ = false;
 	}
 
-	network_->ShutdownServer();
+	if (network_ != nullptr)
+		network_->ShutdownServer();
 
-	data_frame_1_.reset();
-	data_frame_2_.reset();
-	protocol_.reset();
-	network_.reset();
+	if (data_frame_1_ != nullptr)
+		data_frame_1_.reset();
+	
+	if (data_frame_2_ != nullptr)
+		data_frame_2_.reset();
+	
+	if (protocol_ != nullptr)
+		protocol_.reset();
+
+	if (network_ != nullptr)
+		network_.reset();
 
 	bit_write_request_ = false;
 	byte_offset_ = -1;
@@ -400,13 +427,13 @@ void cEvents::RunningloopGenisysNetwork()
 						wxGridCellCoords coord = wxGridCellCoords(row, col);
 						if (bit_val)
 						{
-							this->m_grid3->SetCellValue(coord, wxString("1"));
-							this->m_grid3->SetCellBackgroundColour(coord.GetRow(), coord.GetCol(), *wxGREEN);
+							this->m_grid31->SetCellValue(coord, wxString("1"));
+							this->m_grid31->SetCellBackgroundColour(coord.GetRow(), coord.GetCol(), *wxGREEN);
 						}
 						else
 						{
-							this->m_grid3->SetCellValue(coord, wxString("0"));
-							this->m_grid3->SetCellBackgroundColour(coord.GetRow(), coord.GetCol(), *wxRED);
+							this->m_grid31->SetCellValue(coord, wxString("0"));
+							this->m_grid31->SetCellBackgroundColour(coord.GetRow(), coord.GetCol(), *wxRED);
 						}
 					}
 

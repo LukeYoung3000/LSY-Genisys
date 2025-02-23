@@ -79,7 +79,6 @@ cFrame::cFrame( wxWindow* parent, wxWindowID id, const wxString& title, const wx
 	bSizer7->Add( m_staticText10, 0, wxALIGN_CENTER|wxALL, 5 );
 
 	m_toggleStartStop = new wxToggleButton( m_panel1, wxID_ANY, wxT("Start/Stop"), wxDefaultPosition, wxDefaultSize, 0 );
-	m_toggleStartStop->SetValue( true );
 	bSizer7->Add( m_toggleStartStop, 0, wxALIGN_CENTER|wxALL, 5 );
 
 
@@ -460,8 +459,12 @@ cFrame::cFrame( wxWindow* parent, wxWindowID id, const wxString& title, const wx
 	this->Layout();
 	m_menubar3 = new wxMenuBar( 0 );
 	MenuHelp = new wxMenu();
+	wxMenuItem* MenuHelpLog;
+	MenuHelpLog = new wxMenuItem( MenuHelp, wxID_ANY, wxString( wxT("Log") ) , wxEmptyString, wxITEM_NORMAL );
+	MenuHelp->Append( MenuHelpLog );
+
 	wxMenuItem* MenuHelpAbout;
-	MenuHelpAbout = new wxMenuItem( MenuHelp, wxID_ANY, wxString( wxT("About") ) , wxEmptyString, wxITEM_NORMAL );
+	MenuHelpAbout = new wxMenuItem( MenuHelp, wxID_ANY, wxString( wxT("About\n") ) , wxEmptyString, wxITEM_NORMAL );
 	MenuHelp->Append( MenuHelpAbout );
 
 	m_menubar3->Append( MenuHelp, wxT("Help") );
@@ -472,14 +475,17 @@ cFrame::cFrame( wxWindow* parent, wxWindowID id, const wxString& title, const wx
 	this->Centre( wxBOTH );
 
 	// Connect Events
+	this->Connect( wxEVT_CLOSE_WINDOW, wxCloseEventHandler( cFrame::TopLevelWindowCloseEvent ) );
 	m_toggleStartStop->Connect( wxEVT_COMMAND_TOGGLEBUTTON_CLICKED, wxCommandEventHandler( cFrame::StartStopServerEvent ), NULL, this );
 	m_grid3->Connect( wxEVT_GRID_CELL_LEFT_CLICK, wxGridEventHandler( cFrame::GridClickEvent ), NULL, this );
+	MenuHelp->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( cFrame::MenuHelpLogOnMenuSelection ), this, MenuHelpLog->GetId());
 	MenuHelp->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( cFrame::MenuHelpAboutOnMenuSelection ), this, MenuHelpAbout->GetId());
 }
 
 cFrame::~cFrame()
 {
 	// Disconnect Events
+	this->Disconnect( wxEVT_CLOSE_WINDOW, wxCloseEventHandler( cFrame::TopLevelWindowCloseEvent ) );
 	m_toggleStartStop->Disconnect( wxEVT_COMMAND_TOGGLEBUTTON_CLICKED, wxCommandEventHandler( cFrame::StartStopServerEvent ), NULL, this );
 	m_grid3->Disconnect( wxEVT_GRID_CELL_LEFT_CLICK, wxGridEventHandler( cFrame::GridClickEvent ), NULL, this );
 

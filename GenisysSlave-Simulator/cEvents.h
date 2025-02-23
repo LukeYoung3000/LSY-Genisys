@@ -55,9 +55,11 @@ public:
 	cEvents();
 
 	// UI Events
+	void TopLevelWindowCloseEvent(wxCloseEvent& event) override;
 	void StartStopServerEvent(wxCommandEvent& event) override;
 	void GridClickEvent(wxGridEvent& event) override;
 	void MenuHelpAboutOnMenuSelection(wxCommandEvent& event) override;
+	void MenuHelpLogOnMenuSelection(wxCommandEvent& event) override;
 	void IdleEvent(wxIdleEvent& event);
 
 	// Network

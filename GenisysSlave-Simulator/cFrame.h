@@ -60,8 +60,10 @@ class cFrame : public wxFrame
 		wxMenu* MenuHelp;
 
 		// Virtual event handlers, override them in your derived class
+		virtual void TopLevelWindowCloseEvent( wxCloseEvent& event ) { event.Skip(); }
 		virtual void StartStopServerEvent( wxCommandEvent& event ) { event.Skip(); }
 		virtual void GridClickEvent( wxGridEvent& event ) { event.Skip(); }
+		virtual void MenuHelpLogOnMenuSelection( wxCommandEvent& event ) { event.Skip(); }
 		virtual void MenuHelpAboutOnMenuSelection( wxCommandEvent& event ) { event.Skip(); }
 
 
