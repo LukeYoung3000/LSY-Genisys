@@ -445,10 +445,26 @@ void cEvents::RunningloopGenisysNetwork()
 
 
 
+		// Update Last Master IP & Responce Counter On GUI
+		// Note: I'm Using The Values From The Indication Data Frame.
+		// The Control & Indication Will Have The Exact Same Values Anyway.
+		std::string last_master_ip = data_frame_1_->GetLastMasterIp();
+		std::string responce_cnt = std::to_string(data_frame_1_->GetResponceCounter());
+		wxGetApp().CallAfter([this, last_master_ip, responce_cnt]()
+			{
+
+				m_staticTextLastMasterIp->SetLabel(last_master_ip);
+				m_staticTextResponceCounter->SetLabel(responce_cnt);
+
+			});
+
+
 
 		// Run Server Loop
 		// To Do: Make This Nonblocking
 		network_->ServerLoop();
+
+
 
 		std::this_thread::sleep_for(50ms);
 	}

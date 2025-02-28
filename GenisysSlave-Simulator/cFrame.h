@@ -52,6 +52,11 @@ class cFrame : public wxFrame
 		wxTextCtrl* m_textFrameSize;
 		wxStaticText* m_staticText10;
 		wxToggleButton* m_toggleStartStop;
+		wxStaticText* m_staticText101;
+		wxStaticText* m_staticText102;
+		wxStaticText* m_staticTextLastMasterIp;
+		wxStaticText* m_staticText1022;
+		wxStaticText* m_staticTextResponceCounter;
 		wxStaticText* m_staticText11;
 		wxGrid* m_grid3;
 		wxStaticText* m_staticText111;

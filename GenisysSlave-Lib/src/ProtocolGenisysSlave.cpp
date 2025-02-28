@@ -68,7 +68,7 @@ namespace LSY
 		return true;
 	}
 
-	bool ProtocolGenisysSlave::ProcessMessages(std::vector<uint8_t> & data_buffer)
+	bool ProtocolGenisysSlave::ProcessMessages(std::vector<uint8_t> & data_buffer, std::string master_ip)
 	{
 
 		if (!SeperateMessages(data_buffer))
@@ -82,7 +82,7 @@ namespace LSY
 		{
 			std::vector<uint8_t> responce_message;
 
-			if (!ProcessMessage(input_messages[i], responce_message))
+			if (!ProcessMessage(input_messages[i], responce_message, master_ip))
 			{
 				continue;
 			}
@@ -131,7 +131,7 @@ namespace LSY
 		return true;
 	}
 
-	bool ProtocolGenisysSlave::ProcessMessage(std::vector<uint8_t> & gen_msg_buffer, std::vector<uint8_t> & gen_msg_responce)
+	bool ProtocolGenisysSlave::ProcessMessage(std::vector<uint8_t>& gen_msg_buffer, std::vector<uint8_t>& gen_msg_responce, std::string master_ip)
 	{
 
 		static int msg_count = 0;
@@ -152,7 +152,7 @@ namespace LSY
 			Logging::LogErrorF("ProtocolGenisysSlave::ProcessMessage: Failed To Remove ESCAPE Chars");
 			return false;
 		}
-			
+
 
 		Logging::LogDebugF("ProtocolGenisysSlave::ProcessMessage: From Master (Excluding ESCAPE Chars)");
 		LogGenisysMsg(gen_msg_buffer);
@@ -212,7 +212,7 @@ namespace LSY
 			}
 
 			// Send "Indication Data Response" Back To Master
-			else 
+			else
 			{
 				gen_msg_responce.push_back(GEN_MSG_TYPE_IND_RESP);
 				gen_msg_responce.push_back(slave_address_from_master);
@@ -229,7 +229,7 @@ namespace LSY
 				uint8_t crc_high = 0;
 				if (!CalculateCRC(gen_msg_responce, &crc_low, &crc_high))
 					return false;
-					
+
 				gen_msg_responce.push_back((uint8_t)crc_low);
 				gen_msg_responce.push_back((uint8_t)crc_high);
 			}
@@ -261,7 +261,7 @@ namespace LSY
 			// Get All Data From User Code
 			std::vector<uint64_t> byte_offsets;
 			std::vector<uint8_t> values;
-			if(!indication_data_frames[slave_address_from_master]->GetUpdates(byte_offsets, values, true))
+			if (!indication_data_frames[slave_address_from_master]->GetUpdates(byte_offsets, values, true))
 			{
 				// Warning
 				Logging::LogWarningF("ProtocolGenisysSlave::ProcessMessage: Failed To Get Data Updates For Slave ID [%d]", slave_address_from_master);
@@ -297,7 +297,7 @@ namespace LSY
 
 		else if (msg_type == GEN_MSG_TYPE_CONTROL)
 		{
-	
+
 			// Check: Message Should Be At Least 7 Bytes Long
 			// FC SLAVE_ID MODE_BYTE_OFFSET MODE_BYTE_VALUE CRC_LOW CRC_HIGH F6
 			if (gen_msg_buffer.size() < 7)
@@ -305,14 +305,14 @@ namespace LSY
 				// Error - Control Message Should Be 7 Bytes Long Or More
 				return false;
 			}
-			
+
 			// Check: Message Should Have An Odd Number Of Bytes
 			if ((gen_msg_buffer.size() % 2) != 1)
 			{
 				// Error - Control Message Should Contain An Odd Number Of Bytes
 				return false;
 			}
-			
+
 			// Remove Message Byte & Slave ID Byte (First 2 Bytes)
 			gen_msg_buffer.erase(gen_msg_buffer.begin());
 			gen_msg_buffer.erase(gen_msg_buffer.begin());
@@ -325,7 +325,7 @@ namespace LSY
 			// To Do: Should Check CRC Is Correct
 			crc_high = gen_msg_buffer.back(); gen_msg_buffer.pop_back();
 			crc_low = gen_msg_buffer.back(); gen_msg_buffer.pop_back();
-			
+
 
 			// Control Bytes And Values
 			// Loop Through Remaining Data And Save Updates
@@ -333,17 +333,17 @@ namespace LSY
 			std::vector<uint8_t> values;
 			for (int i = 0; i < gen_msg_buffer.size(); i++)
 			{
-				if (i % 2)	
+				if (i % 2)
 				{
 					// Odd Number Index
 					values.push_back(gen_msg_buffer[i]);
 				}
-					
+
 				else
 				{
 					// Even Number Index
 					byte_offsets.push_back(gen_msg_buffer[i]);
-				}		
+				}
 			}
 
 
@@ -419,6 +419,20 @@ namespace LSY
 
 		Logging::LogDebugF("ProtocolGenisysSlave::ProcessMessage: [%d] To Master (Including ESCAPE Chars)", slave_address_from_master);
 		LogGenisysMsg(gen_msg_responce);
+
+
+		
+		if (indication_data_frames.count(slave_address_from_master))
+		{
+			indication_data_frames[slave_address_from_master]->SetLastMasterIp(master_ip);
+			indication_data_frames[slave_address_from_master]->IncrementResponceCounter();
+		}
+		
+		if (control_data_frames.count(slave_address_from_master))
+		{
+			control_data_frames[slave_address_from_master]->SetLastMasterIp(master_ip);
+			control_data_frames[slave_address_from_master]->IncrementResponceCounter();
+		}
 
 		return true;
 	}

@@ -81,6 +81,26 @@ cFrame::cFrame( wxWindow* parent, wxWindowID id, const wxString& title, const wx
 	m_toggleStartStop = new wxToggleButton( m_panel1, wxID_ANY, wxT("Start/Stop"), wxDefaultPosition, wxDefaultSize, 0 );
 	bSizer7->Add( m_toggleStartStop, 0, wxALIGN_CENTER|wxALL, 5 );
 
+	m_staticText101 = new wxStaticText( m_panel1, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticText101->Wrap( -1 );
+	bSizer7->Add( m_staticText101, 0, wxALIGN_CENTER_HORIZONTAL|wxALL, 5 );
+
+	m_staticText102 = new wxStaticText( m_panel1, wxID_ANY, wxT("Last Master IP:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticText102->Wrap( -1 );
+	bSizer7->Add( m_staticText102, 0, wxALL, 5 );
+
+	m_staticTextLastMasterIp = new wxStaticText( m_panel1, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticTextLastMasterIp->Wrap( -1 );
+	bSizer7->Add( m_staticTextLastMasterIp, 0, wxALL, 5 );
+
+	m_staticText1022 = new wxStaticText( m_panel1, wxID_ANY, wxT("Responce Counter:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticText1022->Wrap( -1 );
+	bSizer7->Add( m_staticText1022, 0, wxALL, 5 );
+
+	m_staticTextResponceCounter = new wxStaticText( m_panel1, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticTextResponceCounter->Wrap( -1 );
+	bSizer7->Add( m_staticTextResponceCounter, 0, wxALL, 5 );
+
 
 	bSizer6->Add( bSizer7, 1, wxEXPAND, 0 );
 

@@ -16,6 +16,9 @@ namespace LSY
 		seq_id_api = 0;
 		seq_id_tx  = 0;
 		seq_id_ack = 0;
+
+		last_master_ip = "";
+		responce_counter = 0;
 	}
 
 	std::string DataFrame::GetName()
@@ -28,6 +31,15 @@ namespace LSY
 		return num_bytes_;
 	}
 
+	std::string DataFrame::GetLastMasterIp()
+	{
+		return last_master_ip;
+	}
+
+	uint64_t DataFrame::GetResponceCounter()
+	{
+		return responce_counter;
+	}
 
 
 
@@ -287,5 +299,14 @@ namespace LSY
 		return true;
 	}
 
+	void DataFrame::SetLastMasterIp(std::string master_ip)
+	{
+		last_master_ip = master_ip;
+	}
+
+	void DataFrame::IncrementResponceCounter()
+	{
+		responce_counter++;
+	}
 
 }
