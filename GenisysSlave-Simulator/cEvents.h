@@ -46,6 +46,7 @@ public:
 	std::atomic<bool> stop_thread_;
 	std::thread network_thread_;
 	std::shared_ptr<LSY::DataFrame> data_frame_1_;
+	std::shared_ptr<LSY::DataFrame> data_frame_2_;
 	std::shared_ptr<LSY::ProtocolGenisysSlave> protocol_;
 	std::shared_ptr <LSY::NetworkGenisysSlave> network_;
 
@@ -54,14 +55,17 @@ public:
 	cEvents();
 
 	// UI Events
+	void TopLevelWindowCloseEvent(wxCloseEvent& event) override;
 	void StartStopServerEvent(wxCommandEvent& event) override;
 	void GridClickEvent(wxGridEvent& event) override;
 	void MenuHelpAboutOnMenuSelection(wxCommandEvent& event) override;
+	void MenuHelpLogOnMenuSelection(wxCommandEvent& event) override;
 	void IdleEvent(wxIdleEvent& event);
 
 	// Network
 	bool StartupGenisysNetwork();
 	void ShutdownGenisysNetwork();
 	void RunningloopGenisysNetwork();
+	void EventCallbackGenisysNetwork(std::string table_name, LSY::DataFrame::CALLBACKEVENT event_type);
 
 };

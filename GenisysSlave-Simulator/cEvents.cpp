@@ -38,12 +38,13 @@ cEvents::cEvents() : cFrame(nullptr)
 
 	// Genisys Slave
 	data_frame_1_ = nullptr;
+	data_frame_2_ = nullptr;
 	protocol_ = nullptr;
 	network_ = nullptr;
 
 
 	// Setup Logging
-	logger = new wxLogWindow(this, "Log", true, false);
+	logger = new wxLogWindow(this, "Log", false, false);
 	wxLog::SetActiveTarget(logger);
 	wxLogNull no_log;
 	
@@ -57,6 +58,16 @@ cEvents::cEvents() : cFrame(nullptr)
 	//this->Bind(wxEVT_IDLE, &cEvents::IdleEvent, this);
 }
 
+void cEvents::TopLevelWindowCloseEvent(wxCloseEvent& event)
+{
+	// Shut Down Network Coms
+	ShutdownGenisysNetwork();
+
+	// Turn Logging Off
+	event.SetLoggingOff(true);
+
+	event.Skip();
+}
 
 void cEvents::StartStopServerEvent(wxCommandEvent& event)
 {
@@ -69,10 +80,18 @@ void cEvents::StartStopServerEvent(wxCommandEvent& event)
 		{
 			// Enable User Controls On The Grid
 			m_grid3->Enable(true);
+			m_grid31->Enable(true);
 
 			// Setup Grid Size Based On Genisys Slave DB Bits
+
+			// Indications Grid
 			m_grid3->DeleteRows(0, m_grid3->GetNumberRows());
 			m_grid3->AppendRows(genisys_frame_size_);
+
+			// Controls Grid
+			m_grid31->DeleteRows(0, m_grid31->GetNumberRows());
+			m_grid31->AppendRows(genisys_frame_size_);
+
 
 			// Setup Grid Values Based On Genisys Slave DB Bits
 			// Note: For Now Just Assume 0
@@ -80,8 +99,13 @@ void cEvents::StartStopServerEvent(wxCommandEvent& event)
 			{
 				for (int j = 0; j < 8; j++)
 				{
+					// Indications
 					m_grid3->SetCellValue(wxGridCellCoords(i, j), "0");
 					m_grid3->SetCellBackgroundColour(i, j, *wxRED);
+
+					// Controls
+					m_grid31->SetCellValue(wxGridCellCoords(i, j), "0");
+					m_grid31->SetCellBackgroundColour(i, j, *wxRED);
 				}
 			}
 
@@ -91,6 +115,7 @@ void cEvents::StartStopServerEvent(wxCommandEvent& event)
 		{
 			// Disable User Controls On The Grid
 			m_grid3->Enable(false);
+			m_grid31->Enable(false);
 
 			// Set Start/Stop Button State
 			m_toggleStartStop->SetValue(false);
@@ -104,6 +129,7 @@ void cEvents::StartStopServerEvent(wxCommandEvent& event)
 
 		// Disable User Controls On The Grid
 		m_grid3->Enable(false);
+		m_grid31->Enable(false);
 
 		ShutdownGenisysNetwork();
 	}
@@ -153,11 +179,16 @@ void cEvents::MenuHelpAboutOnMenuSelection(wxCommandEvent& event)
 
 	wxMessageBox(wxString(msg), "About", wxOK | wxICON_INFORMATION);
 
-	logger->Show();
-
 	event.Skip();
 }
 
+
+void cEvents::MenuHelpLogOnMenuSelection(wxCommandEvent& event)
+{
+	// Show the log window
+	logger->Show();
+	event.Skip();
+}
 
 void cEvents::IdleEvent(wxIdleEvent& event)
 {
@@ -215,11 +246,28 @@ bool cEvents::StartupGenisysNetwork()
 	// Setup Genisys UDP Slave
 
 	// Data Frame Setup
-	data_frame_1_ = std::make_shared<DataFrame>("Genisys Slave 1", genisys_frame_size_);
+	data_frame_1_ = std::make_shared<DataFrame>("Genisys Slave 1 Indications", genisys_frame_size_);
+	data_frame_2_ = std::make_shared<DataFrame>("Genisys Slave 1 Controls", genisys_frame_size_);
+
+	// Create Callback For Control Message Events On Data Frame 2
+	std::function<void(std::string, LSY::DataFrame::CALLBACKEVENT)> callback_func = \
+		[this](std::string table_name, LSY::DataFrame::CALLBACKEVENT callback_event_type)
+		{
+			// I had already writen a class method for when events were implemented
+			// So just call that method.
+			this->EventCallbackGenisysNetwork(table_name, callback_event_type);
+		};
+
+	data_frame_2_->AddEventCallback(callback_func); // Add callback to the data frame object.
+
+
+
+
 
 	// Protocol Setup
 	protocol_ = std::make_shared<ProtocolGenisysSlave>();
-	if (!protocol_->AddDataFrame(genisys_slave_id_, data_frame_1_))
+	if (!protocol_->AddDataFrame(genisys_slave_id_, false, data_frame_1_) || \
+		!protocol_->AddDataFrame(genisys_slave_id_, true, data_frame_2_) )
 	{
 		// Error: Data Frame Issue
 		wxLogMessage("cEvents::StartupGenisysNetwork: Protocol Setup Error");
@@ -277,11 +325,20 @@ void cEvents::ShutdownGenisysNetwork()
 		stop_thread_ = false;
 	}
 
-	network_->ShutdownServer();
+	if (network_ != nullptr)
+		network_->ShutdownServer();
 
-	data_frame_1_.reset();
-	protocol_.reset();
-	network_.reset();
+	if (data_frame_1_ != nullptr)
+		data_frame_1_.reset();
+	
+	if (data_frame_2_ != nullptr)
+		data_frame_2_.reset();
+	
+	if (protocol_ != nullptr)
+		protocol_.reset();
+
+	if (network_ != nullptr)
+		network_.reset();
 
 	bit_write_request_ = false;
 	byte_offset_ = -1;
@@ -310,7 +367,7 @@ void cEvents::RunningloopGenisysNetwork()
 		}
 
 
-		// Check If GUI Has Updated A Bit Value In The Table
+		// Check If GUI Has Updated A Bit Value In The Indication Table
 		if (bit_write_request_)
 		{
 			if (data_frame_1_->WriteBit(byte_offset_, bit_offset_, bit_value_))
@@ -352,14 +409,102 @@ void cEvents::RunningloopGenisysNetwork()
 
 		}
 
+
+
+		// Update Last Master IP & Responce Counter On GUI
+		// Note: I'm Using The Values From The Indication Data Frame.
+		// The Control & Indication Will Have The Exact Same Values Anyway.
+		std::string last_master_ip = data_frame_1_->GetLastMasterIp();
+		std::string responce_cnt = std::to_string(data_frame_1_->GetResponceCounter());
+		wxGetApp().CallAfter([this, last_master_ip, responce_cnt]()
+			{
+
+				m_staticTextLastMasterIp->SetLabel(last_master_ip);
+				m_staticTextResponceCounter->SetLabel(responce_cnt);
+
+			});
+
+
+
 		// Run Server Loop
 		// To Do: Make This Nonblocking
 		network_->ServerLoop();
+
+
 
 		std::this_thread::sleep_for(50ms);
 	}
 
 }
+
+void cEvents::EventCallbackGenisysNetwork(std::string table_name, LSY::DataFrame::CALLBACKEVENT event_type)
+{
+	// This function should be mapped as an event call back to the data control frame.
+	// So the function should be called whenever the control frame is updated via the network.
+
+	if (event_type != LSY::DataFrame::CALLBACKEVENT::CONTROL_CHANGE)
+	{
+		// Error - All events other than control changes are not expected
+		return;
+	}
+
+	if (table_name != data_frame_2_->GetName())
+	{
+		// Error - Callback is mapped incorrectly
+		return;
+	}
+
+
+	// Update The Control Table In The GUI
+	// Note: Currently this is not effiencent.
+	// Would be better to detect the values that have change and only update the changes. 
+
+	for (int i = 0; i < data_frame_2_->GetNumBytes(); i++)
+	{
+
+		int row = i;
+		uint8_t byte_val = 0;
+		data_frame_2_->ReadByte(i, byte_val);
+
+		wxGetApp().CallAfter([this, row, byte_val]()
+			{
+
+				// Loop Through Columns In The Row
+				for (int j = 0; j < 8; j++)
+				{
+					int col = j;
+					int bit_offset = 7 - col;
+
+					// Extract the bit value from the byte
+					uint8_t mask = 1 << bit_offset;
+					uint8_t temp_byte = byte_val & mask;
+					temp_byte = temp_byte >> bit_offset;
+					bool bit_val = temp_byte;
+
+					// Update The Cell In The GUI
+					wxGridCellCoords coord = wxGridCellCoords(row, col);
+					if (bit_val)
+					{
+						this->m_grid31->SetCellValue(coord, wxString("1"));
+						this->m_grid31->SetCellBackgroundColour(coord.GetRow(), coord.GetCol(), *wxGREEN);
+					}
+					else
+					{
+						this->m_grid31->SetCellValue(coord, wxString("0"));
+						this->m_grid31->SetCellBackgroundColour(coord.GetRow(), coord.GetCol(), *wxRED);
+					}
+				}
+
+			});
+
+	}
+
+
+}
+
+
+
+
 
 
 

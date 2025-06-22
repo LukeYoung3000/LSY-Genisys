@@ -52,20 +52,29 @@ class cFrame : public wxFrame
 		wxTextCtrl* m_textFrameSize;
 		wxStaticText* m_staticText10;
 		wxToggleButton* m_toggleStartStop;
+		wxStaticText* m_staticText101;
+		wxStaticText* m_staticText102;
+		wxStaticText* m_staticTextLastMasterIp;
+		wxStaticText* m_staticText1022;
+		wxStaticText* m_staticTextResponceCounter;
 		wxStaticText* m_staticText11;
 		wxGrid* m_grid3;
+		wxStaticText* m_staticText111;
+		wxGrid* m_grid31;
 		wxMenuBar* m_menubar3;
 		wxMenu* MenuHelp;
 
 		// Virtual event handlers, override them in your derived class
+		virtual void TopLevelWindowCloseEvent( wxCloseEvent& event ) { event.Skip(); }
 		virtual void StartStopServerEvent( wxCommandEvent& event ) { event.Skip(); }
 		virtual void GridClickEvent( wxGridEvent& event ) { event.Skip(); }
+		virtual void MenuHelpLogOnMenuSelection( wxCommandEvent& event ) { event.Skip(); }
 		virtual void MenuHelpAboutOnMenuSelection( wxCommandEvent& event ) { event.Skip(); }
 
 
 	public:
 
-		cFrame( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxT("Genisys UDP Slave Application - Indications Only"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 520,600 ), long style = wxDEFAULT_FRAME_STYLE|wxTAB_TRAVERSAL );
+		cFrame( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxT("Genisys UDP Slave Application"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 845,600 ), long style = wxDEFAULT_FRAME_STYLE|wxTAB_TRAVERSAL );
 
 		~cFrame();
 

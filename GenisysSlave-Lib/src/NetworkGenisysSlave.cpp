@@ -121,6 +121,7 @@ namespace LSY
 
 		// Get IP Address Of Sender (Genisys Master)
 		char source_ip_buf[100];
+		std::string source_ip_str = "";
 		PCSTR WSAAPI source_ip = inet_ntop(AF_INET, &(sender_addr.sin_addr), source_ip_buf, (size_t)80);
 		if (source_ip == NULL)
 		{
@@ -129,6 +130,7 @@ namespace LSY
 		}
 		else
 		{
+			source_ip_str = std::string(source_ip_buf);
 			// Log Senders Details
 			Logging::LogDebugF("NetworkGenisysSlave::ServerLoop: [%d] Received Datagram From: [%s]:[%d]", configuration_.server_port_, source_ip, ntohs(sender_addr.sin_port));
 		}
@@ -145,7 +147,7 @@ namespace LSY
 
 		// Get Genisys Protocol Response Message
 		std::vector<uint8_t> respond_msg = recv_msg;
-		if (!protocol_->ProcessMessages(respond_msg))
+		if (!protocol_->ProcessMessages(respond_msg, source_ip_str))
 			return false;
 
 		// Pack Response Message Vector Into "server_buf";

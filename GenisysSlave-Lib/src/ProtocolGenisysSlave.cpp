@@ -20,6 +20,7 @@
 #define GEN_MSG_TYPE_END_MSG	(uint8_t)0xF6
 #define GEN_MSG_TYPE_ACK_SLAVE	(uint8_t)0xFA
 #define GEN_MSG_TYPE_POLL		(uint8_t)0xFB
+#define GEN_MSG_TYPE_CONTROL	(uint8_t)0xFC
 #define GEN_MSG_TYPE_RECALL		(uint8_t)0xFD
 
 
@@ -29,33 +30,45 @@
 
 // Note: Genisys Control & Indication Byte Numbers 244 - 255 Are Reserved For Status Information.
 #define GEN_MAX_BYTES (uint8_t)223
+#define GEN_MODE_BYTE (uint8_t)0xE0
 
+// Note: The mode byte return is normally based on internal settings
+// withen the slave device. This is a temp hard coded value to use before the settings
+// feature is implemented.
+#define GEN_MODE_BYTE_RETURN_VALUE (uint8_t)0x04
 
 
 namespace LSY
 {
 
-	bool ProtocolGenisysSlave::AddDataFrame(uint8_t slave_id, std::shared_ptr<DataFrame> & data_frame_obj)
+	bool ProtocolGenisysSlave::AddDataFrame(uint8_t slave_id, bool is_control_frame, std::shared_ptr<DataFrame> & data_frame_obj)
 	{
+		std::map<uint8_t, std::shared_ptr<DataFrame>> * data_frames = &indication_data_frames;
+		if (is_control_frame)
+			data_frames = &control_data_frames;
 
-		if (slave_id == 0 || data_frames.count(slave_id))
+
+		if (slave_id == 0 || data_frames->count(slave_id))
 		{
-			Logging::LogErrorF("ProtocolGenisysSlave::AddDataFrame: Invalid/Duplicate Slave ID [%d]", slave_id);
+			Logging::LogErrorF("ProtocolGenisysSlave::AddDataFrame: Invalid/Duplicate Slave ID [%d] (Is Control Frame = [%d])", slave_id, is_control_frame);
 			return false;
 		}
 
 		uint64_t table_size = data_frame_obj->GetNumBytes();
 		if (table_size > GEN_MAX_BYTES)
 		{
-			Logging::LogErrorF("ProtocolGenisysSlave::AddDataFrame: Table Size Is Too Large [%d] Slave ID [%d]", table_size, slave_id);
+			Logging::LogErrorF("ProtocolGenisysSlave::AddDataFrame: Table Size Is Too Large [%d] Slave ID [%d] (Is Control Frame = [%d])", table_size, slave_id, is_control_frame);
 			return false;
 		}
 
-		data_frames[slave_id] = data_frame_obj;
+		// To Do - Check that "data_frame_obj" raw pointer is not already used in
+		// "indication_data_frames" or "control_data_frames".
+
+		(*data_frames)[slave_id] = data_frame_obj;
 		return true;
 	}
 
-	bool ProtocolGenisysSlave::ProcessMessages(std::vector<uint8_t> & data_buffer)
+	bool ProtocolGenisysSlave::ProcessMessages(std::vector<uint8_t> & data_buffer, std::string master_ip)
 	{
 
 		if (!SeperateMessages(data_buffer))
@@ -69,7 +82,7 @@ namespace LSY
 		{
 			std::vector<uint8_t> responce_message;
 
-			if (!ProcessMessage(input_messages[i], responce_message))
+			if (!ProcessMessage(input_messages[i], responce_message, master_ip))
 			{
 				continue;
 			}
@@ -118,7 +131,7 @@ namespace LSY
 		return true;
 	}
 
-	bool ProtocolGenisysSlave::ProcessMessage(std::vector<uint8_t> & gen_msg_buffer, std::vector<uint8_t> & gen_msg_responce)
+	bool ProtocolGenisysSlave::ProcessMessage(std::vector<uint8_t>& gen_msg_buffer, std::vector<uint8_t>& gen_msg_responce, std::string master_ip)
 	{
 
 		static int msg_count = 0;
@@ -139,7 +152,7 @@ namespace LSY
 			Logging::LogErrorF("ProtocolGenisysSlave::ProcessMessage: Failed To Remove ESCAPE Chars");
 			return false;
 		}
-			
+
 
 		Logging::LogDebugF("ProtocolGenisysSlave::ProcessMessage: From Master (Excluding ESCAPE Chars)");
 		LogGenisysMsg(gen_msg_buffer);
@@ -156,7 +169,7 @@ namespace LSY
 
 
 		// Check That Slave Address From Master Exists In Stored DataFrames
-		if (!data_frames.count(slave_address_from_master))
+		if (!indication_data_frames.count(slave_address_from_master) && !control_data_frames.count(slave_address_from_master))
 		{
 			// Disregard Message As The Slave ID Doesn't Match
 			// To Do: Check For Broadcast Slave ID 0
@@ -182,7 +195,7 @@ namespace LSY
 			// Check For Table Updates
 			std::vector<uint64_t> byte_offsets;
 			std::vector<uint8_t> values;
-			if (!data_frames[slave_address_from_master]->GetUpdates(byte_offsets, values))
+			if (!indication_data_frames[slave_address_from_master]->GetUpdates(byte_offsets, values))
 			{
 				// Warning
 				Logging::LogWarningF("ProtocolGenisysSlave::ProcessMessage: Failed To Get Data Updates For Slave ID [%d]", slave_address_from_master);
@@ -199,7 +212,7 @@ namespace LSY
 			}
 
 			// Send "Indication Data Response" Back To Master
-			else 
+			else
 			{
 				gen_msg_responce.push_back(GEN_MSG_TYPE_IND_RESP);
 				gen_msg_responce.push_back(slave_address_from_master);
@@ -216,7 +229,7 @@ namespace LSY
 				uint8_t crc_high = 0;
 				if (!CalculateCRC(gen_msg_responce, &crc_low, &crc_high))
 					return false;
-					
+
 				gen_msg_responce.push_back((uint8_t)crc_low);
 				gen_msg_responce.push_back((uint8_t)crc_high);
 			}
@@ -231,7 +244,7 @@ namespace LSY
 
 			// Notify User Code That The Master Has Received Our Last Update
 			// We Can Reset Our User Updates Now
-			data_frames[slave_address_from_master]->DataAck();
+			indication_data_frames[slave_address_from_master]->DataAck();
 
 			// Send "Acknowledge Master Message" Back To Master
 			gen_msg_responce.push_back(GEN_MSG_TYPE_ACK_MASTER);
@@ -248,7 +261,7 @@ namespace LSY
 			// Get All Data From User Code
 			std::vector<uint64_t> byte_offsets;
 			std::vector<uint8_t> values;
-			if(!data_frames[slave_address_from_master]->GetUpdates(byte_offsets, values, true))
+			if (!indication_data_frames[slave_address_from_master]->GetUpdates(byte_offsets, values, true))
 			{
 				// Warning
 				Logging::LogWarningF("ProtocolGenisysSlave::ProcessMessage: Failed To Get Data Updates For Slave ID [%d]", slave_address_from_master);
@@ -267,8 +280,8 @@ namespace LSY
 			}
 
 			// Mode Byte (From Example)
-			gen_msg_responce.push_back(0xE0);
-			gen_msg_responce.push_back(0x04);
+			gen_msg_responce.push_back(GEN_MODE_BYTE);
+			gen_msg_responce.push_back(GEN_MODE_BYTE_RETURN_VALUE);
 
 			// Calculate CRC
 			uint8_t crc_low = 0;
@@ -278,6 +291,113 @@ namespace LSY
 
 			gen_msg_responce.push_back(crc_low);
 			gen_msg_responce.push_back(crc_high);
+		}
+
+
+
+		else if (msg_type == GEN_MSG_TYPE_CONTROL)
+		{
+
+			// Check: Message Should Be At Least 7 Bytes Long
+			// FC SLAVE_ID MODE_BYTE_OFFSET MODE_BYTE_VALUE CRC_LOW CRC_HIGH F6
+			if (gen_msg_buffer.size() < 7)
+			{
+				// Error - Control Message Should Be 7 Bytes Long Or More
+				return false;
+			}
+
+			// Check: Message Should Have An Odd Number Of Bytes
+			if ((gen_msg_buffer.size() % 2) != 1)
+			{
+				// Error - Control Message Should Contain An Odd Number Of Bytes
+				return false;
+			}
+
+			// Remove Message Byte & Slave ID Byte (First 2 Bytes)
+			gen_msg_buffer.erase(gen_msg_buffer.begin());
+			gen_msg_buffer.erase(gen_msg_buffer.begin());
+
+			// Remove End Of Message Byte
+			// This Has Been Check As "F6" In IsMasterMessageValid()
+			gen_msg_buffer.pop_back();
+
+			// Get CRC Bytes From Last 2 Chars
+			// To Do: Should Check CRC Is Correct
+			crc_high = gen_msg_buffer.back(); gen_msg_buffer.pop_back();
+			crc_low = gen_msg_buffer.back(); gen_msg_buffer.pop_back();
+
+
+			// Control Bytes And Values
+			// Loop Through Remaining Data And Save Updates
+			std::vector<uint64_t> byte_offsets;
+			std::vector<uint8_t> values;
+			for (int i = 0; i < gen_msg_buffer.size(); i++)
+			{
+				if (i % 2)
+				{
+					// Odd Number Index
+					values.push_back(gen_msg_buffer[i]);
+				}
+
+				else
+				{
+					// Even Number Index
+					byte_offsets.push_back(gen_msg_buffer[i]);
+				}
+			}
+
+
+			// Check For Mode Byte & Mode Byte Value
+			// Note: Mode Bytes Will Be At The End, Maybe Loop From Back To Front
+			uint8_t mode_byte_value = 0;
+			for (int i = 0; i < values.size(); i++)
+			{
+				if (byte_offsets[i] == GEN_MODE_BYTE)
+				{
+					mode_byte_value = values[i];
+					byte_offsets.erase(byte_offsets.begin() + i);	// Remove Mode Byte From byte_offsets
+					values.erase(values.begin() + i);				// Remove Mode Byte From values
+					break;
+				}
+			}
+
+
+			int num_bytes_processed = control_data_frames[slave_address_from_master]->RecvBytes(byte_offsets, values);
+			if (num_bytes_processed != values.size())
+			{
+				// Warning
+				Logging::LogWarningF("ProtocolGenisysSlave::ProcessMessage: Failed To Write Controls For Slave ID [%d]", slave_address_from_master);
+				return false;
+			}
+			
+
+
+
+			// Construct Responce Message
+			// Slave responce format regardless of how many bytes recieved
+			// F2 SLAVE_ID MODE_BYTE_OFFSET MODE_BYTE_VALUE CRC_LOW CRC_HIGH F6
+
+			// Master Ack Slave :
+			// Example: fa52c35df6
+
+			// Slave Ack Master :
+			// Exampe: f152f6
+
+			// Construct Responce Message
+			gen_msg_responce.push_back(GEN_MSG_TYPE_IND_RESP);
+			gen_msg_responce.push_back(slave_address_from_master);
+			gen_msg_responce.push_back(GEN_MODE_BYTE);
+			gen_msg_responce.push_back(GEN_MODE_BYTE_RETURN_VALUE);
+
+			// Calculate CRC
+			uint8_t crc_low = 0;
+			uint8_t crc_high = 0;
+			if (!CalculateCRC(gen_msg_responce, &crc_low, &crc_high))
+				return false;
+
+			gen_msg_responce.push_back(crc_low);
+			gen_msg_responce.push_back(crc_high);
+
 		}
 
 
@@ -296,6 +416,20 @@ namespace LSY
 
 		Logging::LogDebugF("ProtocolGenisysSlave::ProcessMessage: [%d] To Master (Including ESCAPE Chars)", slave_address_from_master);
 		LogGenisysMsg(gen_msg_responce);
+
+
+		
+		if (indication_data_frames.count(slave_address_from_master))
+		{
+			indication_data_frames[slave_address_from_master]->SetLastMasterIp(master_ip);
+			indication_data_frames[slave_address_from_master]->IncrementResponceCounter();
+		}
+		
+		if (control_data_frames.count(slave_address_from_master))
+		{
+			control_data_frames[slave_address_from_master]->SetLastMasterIp(master_ip);
+			control_data_frames[slave_address_from_master]->IncrementResponceCounter();
+		}
 
 		return true;
 	}
