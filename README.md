@@ -1,6 +1,6 @@
 ﻿
 <!-- PROJECT SCREEN SHOT -->
-[![Product Name Screen Shot][product-screenshot]]
+![Product Name Screen Shot][product-screenshot]
 
 ## Genisys Protocol
 
@@ -22,7 +22,6 @@ Genisys slave device without having a physical device.
 The source code dose minimal error checking/handling and was NOT written to any safety standard.
 Should be used for rudimentary testing purposes only.
 
-
 ## Usage (For Users)
 
 Download the latest version of "GenisysSlave-Simulator" from the **Releases** page.
@@ -37,28 +36,34 @@ Download the latest version of "GenisysSlave-Simulator" from the **Releases** pa
 
 **Start/Stop:** Toggles the Genisys slave server to start and stop.
 
+**Last Master IP:** Shows the IP address of the last received message from a Genisys master.
+This can help determine if this slave has multiple masters polling it.
+
+**Responce Counter:** Is the current number of responce messages this slave has send to the master.
+
 **Notes:**
 The parameters above can not be changed while the server is running.
 Server must be stoped and restarted to register the updates.
 
 
 ## Limitations
-
-- Genisys indications only (Control messages are ignored "0xFC").
-- UDP only (RS232 and TCP not implemented).
+- UDP only (RS232 and TCP to be designed)
+- Genisys Slave/Server only (Genisys Master/Client to be designed)
+- CRC checksums are not currently validated (They can be anything and still pass)
+- LSY::DataFrame objects are not currently thread safe. These objects will be used by the Genisys lib and by user code, so they should be thread safe.
 
 
 ## Known Issues
-- Missing menu item to open log window.
-- Application crashes if server is running when app is closed.
+- The library can't handle alot of messages for different slave IDs hosted on the same UDP port. This can likely be fixed by improving byte buffer processing.
+- Multiple Genisys masters polling the same Genisys slave may lead to sync issues.
 
 
 ## License
 MIT (see LICENSE.txt)
 
 
-## Development Details
-C++, Winsock, wxWidgets (wxFormBuilder), Genisys Lib, Visual Studio 2022 Solution.
+## Development Tools
+C++, Winsock, wxWidgets (wxFormBuilder), Visual Studio 2022.
 
 
 
