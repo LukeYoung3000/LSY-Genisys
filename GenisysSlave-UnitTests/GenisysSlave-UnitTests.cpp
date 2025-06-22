@@ -54,6 +54,9 @@ int main()
 	// Data Frame Setup
 	std::shared_ptr<DataFrame> data_ind = std::make_shared<DataFrame>("Genisys Slave 1 Indications", num_bytes);
 	std::shared_ptr<DataFrame> data_ctrl = std::make_shared<DataFrame>("Genisys Slave 1 Controls", num_bytes);
+	std::function<void(std::string, LSY::DataFrame::CALLBACKEVENT)> callback = &EventCallback;
+	data_ctrl->AddEventCallback(callback); // Add callback fuction for control frame events
+
 
 	// Protocol Setup
 	std::shared_ptr<ProtocolGenisysSlave> protocol = std::make_shared<ProtocolGenisysSlave>();
@@ -91,6 +94,26 @@ int main()
 
 
 
+
+void EventCallback(std::string table_name, LSY::DataFrame::CALLBACKEVENT event_type)
+{
+	
+	switch (event_type)
+	{
+		case (LSY::DataFrame::CALLBACKEVENT::CONTROL_CHANGE):
+			LogInfo("---- EventCallback - Control Change - " + table_name);
+			break;
+
+		case (LSY::DataFrame::CALLBACKEVENT::DEFAULT):
+			LogInfo("---- EventCallback - Default - " + table_name);
+			break;
+
+		default:
+			LogInfo("---- EventCallback - Invalid - " + table_name);
+			break;
+	}
+
+}
 
 bool LogDebug(const std::string& log_msg)
 {

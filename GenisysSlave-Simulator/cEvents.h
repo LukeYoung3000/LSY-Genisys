@@ -66,5 +66,6 @@ public:
 	bool StartupGenisysNetwork();
 	void ShutdownGenisysNetwork();
 	void RunningloopGenisysNetwork();
+	void EventCallbackGenisysNetwork(std::string table_name, LSY::DataFrame::CALLBACKEVENT event_type);
 
 };

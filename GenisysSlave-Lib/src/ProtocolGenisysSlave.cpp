@@ -362,17 +362,14 @@ namespace LSY
 			}
 
 
-
-			// To Do: Create A Different "WriteBytes" Function For The The Interface To Genisys Protocol
-			for (int i = 0; i < values.size(); i++)
+			int num_bytes_processed = control_data_frames[slave_address_from_master]->RecvBytes(byte_offsets, values);
+			if (num_bytes_processed != values.size())
 			{
-				if (!control_data_frames[slave_address_from_master]->WriteByte(byte_offsets[i], values[i]))
-				{
-					// Warning
-					Logging::LogWarningF("ProtocolGenisysSlave::ProcessMessage: Failed To Write Controls For Slave ID [%d]", slave_address_from_master);
-					return false;
-				}
+				// Warning
+				Logging::LogWarningF("ProtocolGenisysSlave::ProcessMessage: Failed To Write Controls For Slave ID [%d]", slave_address_from_master);
+				return false;
 			}
+			
 
 
 

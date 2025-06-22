@@ -21,6 +21,12 @@ namespace LSY
 		responce_counter = 0;
 	}
 
+	bool DataFrame::AddEventCallback(std::function<void(std::string, LSY::DataFrame::CALLBACKEVENT)> & func)
+	{
+		callback_ = func;
+		return true;
+	}
+
 	std::string DataFrame::GetName()
 	{
 		return name_;
@@ -309,4 +315,38 @@ namespace LSY
 		responce_counter++;
 	}
 
+
+	int DataFrame::RecvBytes(std::vector<uint64_t> & byte_offsets, std::vector<uint8_t> & values)
+	{
+		if (byte_offsets.size() != values.size())
+		{
+			// Error - offsets and values need to be the same size
+			return false;
+		}
+
+		int success_cnt = 0;
+		for (int i = 0; i < values.size(); i++)
+		{
+			if (!WriteByte(byte_offsets[i], values[i]))
+			{
+				// Warning
+				Logging::LogWarningF("DataFrame::RecvBytes: Failed To Write Controls For Data Table [%d]", name_);
+			}
+			else
+			{
+				success_cnt++;
+			}
+		}
+
+		// Send a control change callback event to user
+		if (callback_ != nullptr)
+			callback_(name_, LSY::DataFrame::CALLBACKEVENT::CONTROL_CHANGE);
+
+
+		return success_cnt;
+	}
+
 }
+
+
+

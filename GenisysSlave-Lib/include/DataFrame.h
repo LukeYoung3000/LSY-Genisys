@@ -2,11 +2,20 @@
 
 #include <string>
 #include <vector>
+#include <functional>
 
 namespace LSY
 {
 	class DataFrame
 	{
+
+	public:
+
+		enum class CALLBACKEVENT
+		{
+			DEFAULT = 0,			// Generaly means something went wrong
+			CONTROL_CHANGE = 1		// At least one paramter in the table has change due to Genisys protocol
+		};
 
 	private:
 
@@ -26,10 +35,14 @@ namespace LSY
 		std::string last_master_ip;		// IP address that the last responce message was sent to from this frame
 		uint64_t responce_counter;		// Counter for the number of responce messages sent from this frame
 
+		std::function<void(std::string, LSY::DataFrame::CALLBACKEVENT)> callback_;
+
 
 	public: // User API
 
 		DataFrame(std::string name, uint64_t num_bytes);
+		bool AddEventCallback(std::function<void(std::string, LSY::DataFrame::CALLBACKEVENT)> & func);
+
 		std::string GetName();
 		uint64_t GetNumBytes();
 		std::string GetLastMasterIp();
@@ -54,6 +67,8 @@ namespace LSY
 		
 		void SetLastMasterIp(std::string master_ip);
 		void IncrementResponceCounter();
+
+		int RecvBytes(std::vector<uint64_t> & byte_offsets, std::vector<uint8_t> & values);
 
 	};
 }

@@ -249,6 +249,21 @@ bool cEvents::StartupGenisysNetwork()
 	data_frame_1_ = std::make_shared<DataFrame>("Genisys Slave 1 Indications", genisys_frame_size_);
 	data_frame_2_ = std::make_shared<DataFrame>("Genisys Slave 1 Controls", genisys_frame_size_);
 
+	// Create Callback For Control Message Events On Data Frame 2
+	std::function<void(std::string, LSY::DataFrame::CALLBACKEVENT)> callback_func = \
+		[this](std::string table_name, LSY::DataFrame::CALLBACKEVENT callback_event_type)
+		{
+			// I had already writen a class method for when events were implemented
+			// So just call that method.
+			this->EventCallbackGenisysNetwork(table_name, callback_event_type);
+		};
+
+	data_frame_2_->AddEventCallback(callback_func); // Add callback to the data frame object.
+
+
+
+
+
 	// Protocol Setup
 	protocol_ = std::make_shared<ProtocolGenisysSlave>();
 	if (!protocol_->AddDataFrame(genisys_slave_id_, false, data_frame_1_) || \
@@ -396,55 +411,6 @@ void cEvents::RunningloopGenisysNetwork()
 
 
 
-
-		// Update The Control Table In The GUI
-		// Note: Currently this is not effiencent.
-		// Would be better to detect the values that have change and only update the changes. 
-
-		for (int i = 0; i < data_frame_2_->GetNumBytes(); i++)
-		{
-
-			int row = i;
-			uint8_t byte_val = 0;
-			data_frame_2_->ReadByte(i, byte_val);
-
-			wxGetApp().CallAfter([this, row, byte_val]()
-				{
-
-					// Loop Through Columns In The Row
-					for (int j = 0; j < 8; j++)
-					{
-						int col = j;
-						int bit_offset = 7 - col;
-
-						// Extract the bit value from the byte
-						uint8_t mask = 1 << bit_offset;
-						uint8_t temp_byte = byte_val & mask;
-						temp_byte = temp_byte >> bit_offset;
-						bool bit_val = temp_byte;
-
-						// Update The Cell In The GUI
-						wxGridCellCoords coord = wxGridCellCoords(row, col);
-						if (bit_val)
-						{
-							this->m_grid31->SetCellValue(coord, wxString("1"));
-							this->m_grid31->SetCellBackgroundColour(coord.GetRow(), coord.GetCol(), *wxGREEN);
-						}
-						else
-						{
-							this->m_grid31->SetCellValue(coord, wxString("0"));
-							this->m_grid31->SetCellBackgroundColour(coord.GetRow(), coord.GetCol(), *wxRED);
-						}
-					}
-
-
-				});
-
-		}
-
-
-
-
 		// Update Last Master IP & Responce Counter On GUI
 		// Note: I'm Using The Values From The Indication Data Frame.
 		// The Control & Indication Will Have The Exact Same Values Anyway.
@@ -470,6 +436,75 @@ void cEvents::RunningloopGenisysNetwork()
 	}
 
 }
+
+void cEvents::EventCallbackGenisysNetwork(std::string table_name, LSY::DataFrame::CALLBACKEVENT event_type)
+{
+	// This function should be mapped as an event call back to the data control frame.
+	// So the function should be called whenever the control frame is updated via the network.
+
+	if (event_type != LSY::DataFrame::CALLBACKEVENT::CONTROL_CHANGE)
+	{
+		// Error - All events other than control changes are not expected
+		return;
+	}
+
+	if (table_name != data_frame_2_->GetName())
+	{
+		// Error - Callback is mapped incorrectly
+		return;
+	}
+
+
+	// Update The Control Table In The GUI
+	// Note: Currently this is not effiencent.
+	// Would be better to detect the values that have change and only update the changes. 
+
+	for (int i = 0; i < data_frame_2_->GetNumBytes(); i++)
+	{
+
+		int row = i;
+		uint8_t byte_val = 0;
+		data_frame_2_->ReadByte(i, byte_val);
+
+		wxGetApp().CallAfter([this, row, byte_val]()
+			{
+
+				// Loop Through Columns In The Row
+				for (int j = 0; j < 8; j++)
+				{
+					int col = j;
+					int bit_offset = 7 - col;
+
+					// Extract the bit value from the byte
+					uint8_t mask = 1 << bit_offset;
+					uint8_t temp_byte = byte_val & mask;
+					temp_byte = temp_byte >> bit_offset;
+					bool bit_val = temp_byte;
+
+					// Update The Cell In The GUI
+					wxGridCellCoords coord = wxGridCellCoords(row, col);
+					if (bit_val)
+					{
+						this->m_grid31->SetCellValue(coord, wxString("1"));
+						this->m_grid31->SetCellBackgroundColour(coord.GetRow(), coord.GetCol(), *wxGREEN);
+					}
+					else
+					{
+						this->m_grid31->SetCellValue(coord, wxString("0"));
+						this->m_grid31->SetCellBackgroundColour(coord.GetRow(), coord.GetCol(), *wxRED);
+					}
+				}
+
+			});
+
+	}
+
+
+}
+
+
+
+
 
 
 
