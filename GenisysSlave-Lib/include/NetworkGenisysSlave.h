@@ -26,14 +26,22 @@ namespace LSY
 
 		struct Config
 		{
+			enum class CONNECTIONTYPE
+			{
+				UDP = 0,
+				TCP = 1
+			};
+
 			uint16_t server_port_ = 0;
 			uint16_t destination_port_ = 0;
 			// if 0 the Genisys slave will respond to master on the same port the master used to send a UDP message from
+
+			CONNECTIONTYPE connection_type_ = CONNECTIONTYPE::UDP;
 		};
 
 
 
-	private: // UDP Network
+	private: // Network
 
 		// WSA
 		bool is_wsa_started_;
@@ -54,8 +62,10 @@ namespace LSY
 
 
 	public:
+
 		NetworkGenisysSlave(Config configuration);
 		bool AddProtocol(std::shared_ptr<ProtocolGenisysSlave> & protocol);
+
 		bool StartServer();
 		bool ServerLoop();
 		bool ShutdownServer();
