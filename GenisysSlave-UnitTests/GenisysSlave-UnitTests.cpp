@@ -15,6 +15,8 @@ using namespace std::chrono_literals;
 using namespace LSY;
 
 
+// Event Callback Functions
+void EventCallback(std::string table_name, LSY::DataFrame::CALLBACKEVENT event_type);
 
 // Logging Functions
 bool LogDebug(const std::string& log_msg);
@@ -45,11 +47,17 @@ int main()
 	uint8_t slave_id	= 34;		// Hex 22
 	uint16_t port_rx	= 7169;
 	uint16_t port_tx	= 7170;
+	bool is_tcp			= false;
 
 	Logging::LogInfoF("Num Bytes [%d]", num_bytes);
 	Logging::LogInfoF("Slave ID  [%d]", slave_id);
 	Logging::LogInfoF("Port RX   [%d]", port_rx);
 	Logging::LogInfoF("Port TX   [%d]", port_tx);
+	if (is_tcp)
+		Logging::LogInfoF("Port TYPE   [TCP]");
+	else
+		Logging::LogInfoF("Port TYPE   [UDP]");
+	
 
 	// Data Frame Setup
 	std::shared_ptr<DataFrame> data_ind = std::make_shared<DataFrame>("Genisys Slave 1 Indications", num_bytes);
@@ -69,6 +77,12 @@ int main()
 	NetworkGenisysSlave::Config network_config;
 	network_config.server_port_ = port_rx;
 	network_config.destination_port_ = port_tx;
+	if (is_tcp)
+		network_config.connection_type_ = NetworkGenisysSlave::Config::CONNECTIONTYPE::TCP;
+	else
+		network_config.connection_type_ = NetworkGenisysSlave::Config::CONNECTIONTYPE::UDP;
+
+
 
 	// Network Setup
 	NetworkGenisysSlave network(network_config);

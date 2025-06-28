@@ -30,22 +30,24 @@ cFrame::cFrame( wxWindow* parent, wxWindowID id, const wxString& title, const wx
 	wxBoxSizer* bSizer7;
 	bSizer7 = new wxBoxSizer( wxVERTICAL );
 
-	m_staticText4 = new wxStaticText( m_panel1, wxID_ANY, wxT("UDP Port Settings:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticText4 = new wxStaticText( m_panel1, wxID_ANY, wxT("Port Settings:"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticText4->Wrap( -1 );
 	bSizer7->Add( m_staticText4, 0, wxALIGN_CENTER|wxALL, 5 );
 
-	m_staticText7 = new wxStaticText( m_panel1, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
-	m_staticText7->Wrap( -1 );
-	bSizer7->Add( m_staticText7, 0, wxALIGN_CENTER|wxALL, 5 );
+	wxString m_radioBox1Choices[] = { wxT("UDP"), wxT("TCP") };
+	int m_radioBox1NChoices = sizeof( m_radioBox1Choices ) / sizeof( wxString );
+	m_radioBox1 = new wxRadioBox( m_panel1, wxID_ANY, wxT("Protocol"), wxDefaultPosition, wxDefaultSize, m_radioBox1NChoices, m_radioBox1Choices, 1, wxRA_SPECIFY_COLS );
+	m_radioBox1->SetSelection( 0 );
+	bSizer7->Add( m_radioBox1, 0, wxALIGN_CENTER|wxALL, 5 );
 
-	m_staticText2 = new wxStaticText( m_panel1, wxID_ANY, wxT("Receiving"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticText2 = new wxStaticText( m_panel1, wxID_ANY, wxT("Receiving (Listening)"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticText2->Wrap( -1 );
 	bSizer7->Add( m_staticText2, 0, wxALIGN_CENTER|wxALL, 5 );
 
 	m_textUDPrx = new wxTextCtrl( m_panel1, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
 	bSizer7->Add( m_textUDPrx, 0, wxALIGN_CENTER|wxALL, 5 );
 
-	m_staticText3 = new wxStaticText( m_panel1, wxID_ANY, wxT("Transmitting"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticText3 = new wxStaticText( m_panel1, wxID_ANY, wxT("Transmitting (UDP Only)"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticText3->Wrap( -1 );
 	bSizer7->Add( m_staticText3, 0, wxALIGN_CENTER|wxALL, 5 );
 

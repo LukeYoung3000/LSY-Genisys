@@ -2,4 +2,4 @@
 
 #include <string>
 
-const char version[] = "0.2.1.5";
+const char version[] = "0.3.0.6";

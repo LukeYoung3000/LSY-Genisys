@@ -17,6 +17,7 @@ namespace LSY
 		// WSA
 		is_wsa_started_ = false;
 		server_socket_ = INVALID_SOCKET;
+		client_socket_ = INVALID_SOCKET;
 
 		// Buffer
 		bytes_received = 0;
@@ -44,15 +45,30 @@ namespace LSY
 		is_wsa_started_ = true;
 
 
-		// Create UDP Server Socket
+
+
+		// Create TCP or UDP Socket
 		server_socket_ = INVALID_SOCKET;
-		server_socket_ = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+
+		if (configuration_.connection_type_ == NetworkGenisysSlave::Config::CONNECTIONTYPE::TCP)
+		{
+			// Create TCP Server Socket To Listen On
+			server_socket_ = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+		}
+		else
+		{
+			// Create UDP Server Socket
+			server_socket_ = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+		}
+
 		if (server_socket_ == INVALID_SOCKET)
 		{
 			Logging::LogErrorF("NetworkGenisysSlave::StartServer: [%d] Socket Setup Failed", configuration_.server_port_);
 			LogWSAError();
 			return false;
 		}
+
+
 
 
 		// Bind Server Socket
@@ -68,6 +84,24 @@ namespace LSY
 			LogWSAError();
 			return false;
 		}
+
+
+
+
+
+		if (configuration_.connection_type_ == NetworkGenisysSlave::Config::CONNECTIONTYPE::TCP)
+		{
+			// Put the TCP socket into listen mode
+			// backlog = 1 means the socket will only listin for one connection
+			if (listen(server_socket_, 0))
+			{
+				Logging::LogErrorF("NetworkGenisysSlave::StartServer: [%d] Socket Listen Failed", configuration_.server_port_);
+				LogWSAError();
+				return false;
+			}
+		}
+
+
 
 
 
@@ -99,11 +133,59 @@ namespace LSY
 			return false;
 		}
 
-
-		// Get Message From Sender (Genisys Master) 
-		struct sockaddr_in sender_addr;
+		
+		struct sockaddr_in sender_addr;						// Used to store remote machines address
 		int sender_addr_size = sizeof(sender_addr);
-		bytes_received = recvfrom(server_socket_, server_buf, server_buf_len, 0 /* no flags*/, (SOCKADDR*)&sender_addr, &sender_addr_size);
+
+
+		if (configuration_.connection_type_ == NetworkGenisysSlave::Config::CONNECTIONTYPE::TCP)
+		{
+			// Check if client is connected, if not check if we have an incoming connection
+			if (client_socket_ == INVALID_SOCKET)
+			{
+				client_socket_ = accept(server_socket_, (SOCKADDR*)&sender_addr, &sender_addr_size);
+			}
+
+			// Check if client is still not connected
+			// We are still waiting for a client connection
+			if (client_socket_ == INVALID_SOCKET)
+			{
+				return false;
+			}
+
+			// Check if there are any additional pending connections & reject the socket
+			// We reject the socket because we will only accept one connection at a time for now
+			SOCKET temp_socket_ = INVALID_SOCKET;
+			temp_socket_ = accept(server_socket_, nullptr, nullptr);
+			if (temp_socket_ != INVALID_SOCKET)
+				closesocket(temp_socket_);
+
+
+			// Get TCP Message From Sender (Genisys Master)
+			// Add a client timeout code check here, if data not recived for a while?
+			bytes_received = recv(client_socket_, server_buf, server_buf_len, 0 /* no flags */);
+
+			//remote side (client) has preformed gracefull shut down.
+			if (bytes_received == 0) 
+			{
+				shutdown(client_socket_, SD_SEND);
+				closesocket(client_socket_);
+				client_socket_ = INVALID_SOCKET;
+				return false;
+			}
+
+		}
+		else // UDP
+		{
+			// Get UDP Message From Sender (Genisys Master) 
+			bytes_received = recvfrom(server_socket_, server_buf, server_buf_len, 0 /* no flags*/, (SOCKADDR*)&sender_addr, &sender_addr_size);
+		}
+
+
+
+
+
+
 
 
 		// Check For Any Receive Errors
@@ -118,6 +200,11 @@ namespace LSY
 			LogWSAError();
 			return false;
 		}
+
+
+
+
+
 
 		// Get IP Address Of Sender (Genisys Master)
 		char source_ip_buf[100];
@@ -134,11 +221,6 @@ namespace LSY
 			// Log Senders Details
 			Logging::LogDebugF("NetworkGenisysSlave::ServerLoop: [%d] Received Datagram From: [%s]:[%d]", configuration_.server_port_, source_ip, ntohs(sender_addr.sin_port));
 		}
-
-
-
-
-
 
 		// Convert Server Buffer To Vector
 		std::vector<uint8_t> recv_msg;
@@ -166,12 +248,26 @@ namespace LSY
 
 
 
+
+
 		// Send Response Message Over The Network
+		int send_result = 0;
 
-		if (configuration_.destination_port_ > 0)
-			sender_addr.sin_port = htons(configuration_.destination_port_);
+		if (configuration_.connection_type_ == NetworkGenisysSlave::Config::CONNECTIONTYPE::TCP)
+		{
+			send_result = send(client_socket_, server_buf, (int)responce_size, 0);
+		}
+		else // UDP
+		{
+			if (configuration_.destination_port_ > 0)
+				sender_addr.sin_port = htons(configuration_.destination_port_);
 
-		int send_result = sendto(server_socket_, server_buf, (int)responce_size, 0, (struct sockaddr*)&sender_addr, sizeof(sender_addr));
+			send_result = sendto(server_socket_, server_buf, (int)responce_size, 0, (struct sockaddr*)&sender_addr, sizeof(sender_addr));
+		}
+
+
+
+
 
 		// Check For Any Send Errors
 		if (send_result == SOCKET_ERROR)
@@ -194,10 +290,21 @@ namespace LSY
 			if (closesocket(server_socket_) == SOCKET_ERROR)
 			{
 				// Error - Unable To Close Socket
-				Logging::LogErrorF("NetworkGenisysSlave::ShutdownServer: [%d] Unable To Close Socket", configuration_.server_port_);
+				Logging::LogErrorF("NetworkGenisysSlave::ShutdownServer: [%d] Unable To Close Server Socket", configuration_.server_port_);
 				LogWSAError();
 			}
 			server_socket_ = INVALID_SOCKET;
+		}
+
+		if (client_socket_ != INVALID_SOCKET)
+		{
+			if (closesocket(client_socket_) == SOCKET_ERROR)
+			{
+				// Error - Unable To Close Socket
+				Logging::LogErrorF("NetworkGenisysSlave::ShutdownServer: [%d] Unable To Close Client TCP Socket", configuration_.server_port_);
+				LogWSAError();
+			}
+			client_socket_ = INVALID_SOCKET;
 		}
 
 
