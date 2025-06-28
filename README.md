@@ -12,7 +12,7 @@ Genisys uses event based polling and MODBUS uses full frame polling.
 
 ## About The Project
 
-**GenisysSlave-Simulator:** A Microsoft Windows application the allows a user to simulate a Genisys UDP slave device over a IP network.
+**GenisysSlave-Simulator:** A Microsoft Windows application the allows a user to simulate a Genisys slave device over a IP network.
 This application may be useful to SCADA developers that need to connect to a 
 Genisys slave device without having a physical device.
 
@@ -26,7 +26,10 @@ Should be used for rudimentary testing purposes only.
 
 Download the latest version of "GenisysSlave-Simulator" from the **Releases** page.
 
-**Receiving:** Is the local UDP port number the application is listening on.
+**Protocol:** Is the layer 4 protocol (UDP/TCP) that the application is using.
+Note: The TCP server (slave) will only accept 1 TCP client (master) connection at a time. 
+
+**Receiving:** Is the local UDP/TCP port number the application is listening on.
 
 **Transmitting:** Is the port the Genisys master is listening on.
 
@@ -47,7 +50,6 @@ Server must be stoped and restarted to register the updates.
 
 
 ## Limitations
-- UDP only (RS232 and TCP to be designed)
 - Genisys Slave/Server only (Genisys Master/Client to be designed)
 - CRC checksums are not currently validated (They can be anything and still pass)
 - LSY::DataFrame objects are not currently thread safe. These objects will be used by the Genisys lib and by user code, so they should be thread safe.
@@ -55,7 +57,8 @@ Server must be stoped and restarted to register the updates.
 
 ## Known Issues
 - The library can't handle alot of messages for different slave IDs hosted on the same UDP port. This can likely be fixed by improving byte buffer processing.
-- Multiple Genisys masters polling the same Genisys slave may lead to sync issues.
+- Multiple Genisys masters polling the same Genisys UDP slave may lead to sync issues.
+- Only one Genisys master (TCP Client) can connect to the simulator when in TCP mode.
 
 
 ## License

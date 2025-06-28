@@ -15,6 +15,7 @@
 #include <wx/font.h>
 #include <wx/colour.h>
 #include <wx/settings.h>
+#include <wx/radiobox.h>
 #include <wx/textctrl.h>
 #include <wx/tglbtn.h>
 #include <wx/bitmap.h>
@@ -39,7 +40,7 @@ class cFrame : public wxFrame
 	protected:
 		wxPanel* m_panel1;
 		wxStaticText* m_staticText4;
-		wxStaticText* m_staticText7;
+		wxRadioBox* m_radioBox1;
 		wxStaticText* m_staticText2;
 		wxTextCtrl* m_textUDPrx;
 		wxStaticText* m_staticText3;
@@ -74,7 +75,7 @@ class cFrame : public wxFrame
 
 	public:
 
-		cFrame( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxT("Genisys UDP Slave Application"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 845,600 ), long style = wxDEFAULT_FRAME_STYLE|wxTAB_TRAVERSAL );
+		cFrame( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxT("Genisys Slave Application"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 864,655 ), long style = wxDEFAULT_FRAME_STYLE|wxTAB_TRAVERSAL );
 
 		~cFrame();
 

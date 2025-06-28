@@ -17,6 +17,7 @@ namespace LSY
 		// WSA
 		is_wsa_started_ = false;
 		server_socket_ = INVALID_SOCKET;
+		client_socket_ = INVALID_SOCKET;
 
 		// Buffer
 		bytes_received = 0;
@@ -92,7 +93,7 @@ namespace LSY
 		{
 			// Put the TCP socket into listen mode
 			// backlog = 1 means the socket will only listin for one connection
-			if (listen(server_socket_, 1))
+			if (listen(server_socket_, 0))
 			{
 				Logging::LogErrorF("NetworkGenisysSlave::StartServer: [%d] Socket Listen Failed", configuration_.server_port_);
 				LogWSAError();
@@ -132,12 +133,9 @@ namespace LSY
 			return false;
 		}
 
-
-
-		static SOCKET client_socket_ = INVALID_SOCKET;		// For TCP use only
+		
 		struct sockaddr_in sender_addr;						// Used to store remote machines address
 		int sender_addr_size = sizeof(sender_addr);
-
 
 
 		if (configuration_.connection_type_ == NetworkGenisysSlave::Config::CONNECTIONTYPE::TCP)
@@ -154,6 +152,14 @@ namespace LSY
 			{
 				return false;
 			}
+
+			// Check if there are any additional pending connections & reject the socket
+			// We reject the socket because we will only accept one connection at a time for now
+			SOCKET temp_socket_ = INVALID_SOCKET;
+			temp_socket_ = accept(server_socket_, nullptr, nullptr);
+			if (temp_socket_ != INVALID_SOCKET)
+				closesocket(temp_socket_);
+
 
 			// Get TCP Message From Sender (Genisys Master)
 			// Add a client timeout code check here, if data not recived for a while?
@@ -284,10 +290,21 @@ namespace LSY
 			if (closesocket(server_socket_) == SOCKET_ERROR)
 			{
 				// Error - Unable To Close Socket
-				Logging::LogErrorF("NetworkGenisysSlave::ShutdownServer: [%d] Unable To Close Socket", configuration_.server_port_);
+				Logging::LogErrorF("NetworkGenisysSlave::ShutdownServer: [%d] Unable To Close Server Socket", configuration_.server_port_);
 				LogWSAError();
 			}
 			server_socket_ = INVALID_SOCKET;
+		}
+
+		if (client_socket_ != INVALID_SOCKET)
+		{
+			if (closesocket(client_socket_) == SOCKET_ERROR)
+			{
+				// Error - Unable To Close Socket
+				Logging::LogErrorF("NetworkGenisysSlave::ShutdownServer: [%d] Unable To Close Client TCP Socket", configuration_.server_port_);
+				LogWSAError();
+			}
+			client_socket_ = INVALID_SOCKET;
 		}
 
 

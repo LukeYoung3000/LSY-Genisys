@@ -33,7 +33,7 @@ namespace LSY
 			};
 
 			uint16_t server_port_ = 0;
-			uint16_t destination_port_ = 0;
+			uint16_t destination_port_ = 0;	// For UDP Only
 			// if 0 the Genisys slave will respond to master on the same port the master used to send a UDP message from
 
 			CONNECTIONTYPE connection_type_ = CONNECTIONTYPE::UDP;
@@ -47,6 +47,7 @@ namespace LSY
 		bool is_wsa_started_;
 		WSADATA wsa_data;
 		SOCKET server_socket_;
+		SOCKET client_socket_;		// For TCP use only
 
 		// Buffers
 		int bytes_received;

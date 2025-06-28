@@ -218,12 +218,23 @@ bool cEvents::StartupGenisysNetwork()
 		return false;
 	}
 
+
+	// Radio button "1" is "TCP"
+	// Note: We could use "m_radioBox1->GetString()" to confirm the choice strings. 
+	bool is_tcp = false;
+	if (m_radioBox1->GetSelection() == 1)
+		is_tcp = true;
+
+
 	// Get Parameters From GUI
 	bool int_check = true;
-	int_check = int_check && m_textUDPrx->GetValue().ToInt(&udp_rx_port_);					// Get UDP Reciving Port
-	int_check = int_check && m_textUDPtx->GetValue().ToInt(&udp_tx_port_);					// Get UPD Transmit Port
+	int_check = int_check && m_textUDPrx->GetValue().ToInt(&udp_rx_port_);					// Get Reciving/Listening Port
+	if (!is_tcp)
+		int_check = int_check && m_textUDPtx->GetValue().ToInt(&udp_tx_port_);				// Get Transmit Port (UDP Only)
 	int_check = int_check && m_textSlaveID->GetValue().ToInt(&genisys_slave_id_);			// Get Genisys Slave ID
 	int_check = int_check && m_textFrameSize->GetValue().ToInt(&genisys_frame_size_);		// Get Genisys Frame Size
+
+
 
 	if (int_check == false)
 	{
@@ -279,6 +290,11 @@ bool cEvents::StartupGenisysNetwork()
 	NetworkGenisysSlave::Config network_config_;
 	network_config_.server_port_ = udp_rx_port_;
 	network_config_.destination_port_ = udp_tx_port_;
+	if (is_tcp)
+		network_config_.connection_type_ = NetworkGenisysSlave::Config::CONNECTIONTYPE::TCP;
+	else
+		network_config_.connection_type_ = NetworkGenisysSlave::Config::CONNECTIONTYPE::UDP;
+
 	network_ = std::make_shared<NetworkGenisysSlave>(network_config_);
 	if (!network_->AddProtocol(protocol_))
 	{
