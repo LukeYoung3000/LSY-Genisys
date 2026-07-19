@@ -29,6 +29,11 @@ cEvents::cEvents() : cFrame(nullptr)
 	udp_tx_port_ = -1;
 	genisys_slave_id_ = -1;
 	genisys_frame_size_ = -1;
+	serial_com_port_ = "";
+	serial_baud_rate_ = 9600;
+	serial_data_bits_ = 8;
+	serial_stop_bits_ = 1;
+	serial_parity_ = "None";
 
 	// UI States - Genisys Database Updates
 	bit_write_request_ = false;
@@ -65,6 +70,36 @@ void cEvents::TopLevelWindowCloseEvent(wxCloseEvent& event)
 
 	// Turn Logging Off
 	event.SetLoggingOff(true);
+
+	event.Skip();
+}
+
+void cEvents::ProtocolSelectionEvent(wxCommandEvent& event)
+{
+	int selection = m_radioBox1->GetSelection();
+
+	// 0 = UDP, 1 = TCP, 2 = Serial
+	bool enable_network = (selection == 0 || selection == 1);
+	bool enable_serial = (selection == 2);
+
+	// Enable/Disable UDP/TCP controls
+	m_staticText2->Enable(enable_network);
+	m_textUDPrx->Enable(enable_network);
+	m_staticText3->Enable(enable_network);
+	m_textUDPtx->Enable(enable_network && selection == 0);  // UDP TX port only for UDP
+
+	// Enable/Disable Serial controls
+	m_staticTextSerialSettings->Enable(enable_serial);
+	m_staticTextComPort->Enable(enable_serial);
+	m_textComPort->Enable(enable_serial);
+	m_staticTextBaudRate->Enable(enable_serial);
+	m_textBaudRate->Enable(enable_serial);
+	m_staticTextDataBits->Enable(enable_serial);
+	m_textDataBits->Enable(enable_serial);
+	m_staticTextStopBits->Enable(enable_serial);
+	m_textStopBits->Enable(enable_serial);
+	m_staticTextParity->Enable(enable_serial);
+	m_textParity->Enable(enable_serial);
 
 	event.Skip();
 }

@@ -34,7 +34,7 @@ cFrame::cFrame( wxWindow* parent, wxWindowID id, const wxString& title, const wx
 	m_staticText4->Wrap( -1 );
 	bSizer7->Add( m_staticText4, 0, wxALIGN_CENTER|wxALL, 5 );
 
-	wxString m_radioBox1Choices[] = { wxT("UDP"), wxT("TCP") };
+	wxString m_radioBox1Choices[] = { wxT("UDP"), wxT("TCP"), wxT("Serial") };
 	int m_radioBox1NChoices = sizeof( m_radioBox1Choices ) / sizeof( wxString );
 	m_radioBox1 = new wxRadioBox( m_panel1, wxID_ANY, wxT("Protocol"), wxDefaultPosition, wxDefaultSize, m_radioBox1NChoices, m_radioBox1Choices, 1, wxRA_SPECIFY_COLS );
 	m_radioBox1->SetSelection( 0 );
@@ -57,6 +57,45 @@ cFrame::cFrame( wxWindow* parent, wxWindowID id, const wxString& title, const wx
 	m_staticText5 = new wxStaticText( m_panel1, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticText5->Wrap( -1 );
 	bSizer7->Add( m_staticText5, 0, wxALIGN_CENTER|wxALL, 5 );
+
+	m_staticTextSerialSettings = new wxStaticText( m_panel1, wxID_ANY, wxT("Serial Settings:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticTextSerialSettings->Wrap( -1 );
+	bSizer7->Add( m_staticTextSerialSettings, 0, wxALIGN_CENTER|wxALL, 5 );
+
+	m_staticTextComPort = new wxStaticText( m_panel1, wxID_ANY, wxT("COM Port"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticTextComPort->Wrap( -1 );
+	bSizer7->Add( m_staticTextComPort, 0, wxALIGN_CENTER|wxALL, 5 );
+
+	m_textComPort = new wxTextCtrl( m_panel1, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer7->Add( m_textComPort, 0, wxALIGN_CENTER|wxALL, 5 );
+
+	m_staticTextBaudRate = new wxStaticText( m_panel1, wxID_ANY, wxT("Baud Rate"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticTextBaudRate->Wrap( -1 );
+	bSizer7->Add( m_staticTextBaudRate, 0, wxALIGN_CENTER|wxALL, 5 );
+
+	m_textBaudRate = new wxTextCtrl( m_panel1, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer7->Add( m_textBaudRate, 0, wxALIGN_CENTER|wxALL, 5 );
+
+	m_staticTextDataBits = new wxStaticText( m_panel1, wxID_ANY, wxT("Data Bits"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticTextDataBits->Wrap( -1 );
+	bSizer7->Add( m_staticTextDataBits, 0, wxALIGN_CENTER|wxALL, 5 );
+
+	m_textDataBits = new wxTextCtrl( m_panel1, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer7->Add( m_textDataBits, 0, wxALIGN_CENTER|wxALL, 5 );
+
+	m_staticTextStopBits = new wxStaticText( m_panel1, wxID_ANY, wxT("Stop Bits"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticTextStopBits->Wrap( -1 );
+	bSizer7->Add( m_staticTextStopBits, 0, wxALIGN_CENTER|wxALL, 5 );
+
+	m_textStopBits = new wxTextCtrl( m_panel1, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer7->Add( m_textStopBits, 0, wxALIGN_CENTER|wxALL, 5 );
+
+	m_staticTextParity = new wxStaticText( m_panel1, wxID_ANY, wxT("Parity"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticTextParity->Wrap( -1 );
+	bSizer7->Add( m_staticTextParity, 0, wxALIGN_CENTER|wxALL, 5 );
+
+	m_textParity = new wxTextCtrl( m_panel1, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer7->Add( m_textParity, 0, wxALIGN_CENTER|wxALL, 5 );
 
 	m_staticText6 = new wxStaticText( m_panel1, wxID_ANY, wxT("Slave ID"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticText6->Wrap( -1 );
@@ -498,6 +537,7 @@ cFrame::cFrame( wxWindow* parent, wxWindowID id, const wxString& title, const wx
 
 	// Connect Events
 	this->Connect( wxEVT_CLOSE_WINDOW, wxCloseEventHandler( cFrame::TopLevelWindowCloseEvent ) );
+	m_radioBox1->Connect( wxEVT_COMMAND_RADIOBOX_SELECTED, wxCommandEventHandler( cFrame::ProtocolSelectionEvent ), NULL, this );
 	m_toggleStartStop->Connect( wxEVT_COMMAND_TOGGLEBUTTON_CLICKED, wxCommandEventHandler( cFrame::StartStopServerEvent ), NULL, this );
 	m_grid3->Connect( wxEVT_GRID_CELL_LEFT_CLICK, wxGridEventHandler( cFrame::GridClickEvent ), NULL, this );
 	MenuHelp->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( cFrame::MenuHelpLogOnMenuSelection ), this, MenuHelpLog->GetId());
@@ -508,6 +548,7 @@ cFrame::~cFrame()
 {
 	// Disconnect Events
 	this->Disconnect( wxEVT_CLOSE_WINDOW, wxCloseEventHandler( cFrame::TopLevelWindowCloseEvent ) );
+	m_radioBox1->Disconnect( wxEVT_COMMAND_RADIOBOX_SELECTED, wxCommandEventHandler( cFrame::ProtocolSelectionEvent ), NULL, this );
 	m_toggleStartStop->Disconnect( wxEVT_COMMAND_TOGGLEBUTTON_CLICKED, wxCommandEventHandler( cFrame::StartStopServerEvent ), NULL, this );
 	m_grid3->Disconnect( wxEVT_GRID_CELL_LEFT_CLICK, wxGridEventHandler( cFrame::GridClickEvent ), NULL, this );
 

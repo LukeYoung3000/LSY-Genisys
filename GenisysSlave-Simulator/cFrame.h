@@ -62,11 +62,23 @@ class cFrame : public wxFrame
 		wxGrid* m_grid3;
 		wxStaticText* m_staticText111;
 		wxGrid* m_grid31;
+		wxStaticText* m_staticTextSerialSettings;
+		wxStaticText* m_staticTextComPort;
+		wxTextCtrl* m_textComPort;
+		wxStaticText* m_staticTextBaudRate;
+		wxTextCtrl* m_textBaudRate;
+		wxStaticText* m_staticTextDataBits;
+		wxTextCtrl* m_textDataBits;
+		wxStaticText* m_staticTextStopBits;
+		wxTextCtrl* m_textStopBits;
+		wxStaticText* m_staticTextParity;
+		wxTextCtrl* m_textParity;
 		wxMenuBar* m_menubar3;
 		wxMenu* MenuHelp;
 
 		// Virtual event handlers, override them in your derived class
 		virtual void TopLevelWindowCloseEvent( wxCloseEvent& event ) { event.Skip(); }
+		virtual void ProtocolSelectionEvent( wxCommandEvent& event ) { event.Skip(); }
 		virtual void StartStopServerEvent( wxCommandEvent& event ) { event.Skip(); }
 		virtual void GridClickEvent( wxGridEvent& event ) { event.Skip(); }
 		virtual void MenuHelpLogOnMenuSelection( wxCommandEvent& event ) { event.Skip(); }

@@ -33,6 +33,11 @@ public:
 	int udp_tx_port_;
 	int genisys_slave_id_;
 	int genisys_frame_size_;
+	std::string serial_com_port_;
+	int serial_baud_rate_;
+	int serial_data_bits_;
+	int serial_stop_bits_;
+	std::string serial_parity_;
 
 	std::atomic<bool> bit_write_request_;
 	std::atomic<int> byte_offset_;
@@ -56,6 +61,7 @@ public:
 
 	// UI Events
 	void TopLevelWindowCloseEvent(wxCloseEvent& event) override;
+	void ProtocolSelectionEvent(wxCommandEvent& event) override;
 	void StartStopServerEvent(wxCommandEvent& event) override;
 	void GridClickEvent(wxGridEvent& event) override;
 	void MenuHelpAboutOnMenuSelection(wxCommandEvent& event) override;
