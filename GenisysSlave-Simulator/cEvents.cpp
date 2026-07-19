@@ -91,7 +91,7 @@ void cEvents::ProtocolSelectionEvent(wxCommandEvent& event)
 	// Enable/Disable Serial controls
 	m_staticTextSerialSettings->Enable(enable_serial);
 	m_staticTextComPort->Enable(enable_serial);
-	m_textComPort->Enable(enable_serial);
+	m_comboComPort->Enable(enable_serial);
 	m_staticTextBaudRate->Enable(enable_serial);
 	m_textBaudRate->Enable(enable_serial);
 	m_staticTextDataBits->Enable(enable_serial);

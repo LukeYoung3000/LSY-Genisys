@@ -17,6 +17,7 @@
 #include <wx/settings.h>
 #include <wx/radiobox.h>
 #include <wx/textctrl.h>
+#include <wx/combobox.h>
 #include <wx/tglbtn.h>
 #include <wx/bitmap.h>
 #include <wx/image.h>
@@ -64,7 +65,7 @@ class cFrame : public wxFrame
 		wxGrid* m_grid31;
 		wxStaticText* m_staticTextSerialSettings;
 		wxStaticText* m_staticTextComPort;
-		wxTextCtrl* m_textComPort;
+		wxComboBox* m_comboComPort;
 		wxStaticText* m_staticTextBaudRate;
 		wxTextCtrl* m_textBaudRate;
 		wxStaticText* m_staticTextDataBits;
@@ -90,6 +91,8 @@ class cFrame : public wxFrame
 		cFrame( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxT("Genisys Slave Application"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 864,655 ), long style = wxDEFAULT_FRAME_STYLE|wxTAB_TRAVERSAL );
 
 		~cFrame();
+
+		void PopulateComPorts();
 
 };
 
