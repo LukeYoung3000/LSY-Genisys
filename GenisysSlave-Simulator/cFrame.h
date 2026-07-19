@@ -1,10 +1,3 @@
-///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version 4.0.0-0-g0efcecf)
-// http://www.wxformbuilder.org/
-//
-// PLEASE DO *NOT* EDIT THIS FILE!
-///////////////////////////////////////////////////////////////////////////
-
 #pragma once
 
 #include <wx/artprov.h>
@@ -67,13 +60,13 @@ class cFrame : public wxFrame
 		wxStaticText* m_staticTextComPort;
 		wxComboBox* m_comboComPort;
 		wxStaticText* m_staticTextBaudRate;
-		wxTextCtrl* m_textBaudRate;
+		wxComboBox* m_comboBaudRate;
 		wxStaticText* m_staticTextDataBits;
-		wxTextCtrl* m_textDataBits;
+		wxComboBox* m_comboDataBits;
 		wxStaticText* m_staticTextStopBits;
-		wxTextCtrl* m_textStopBits;
+		wxComboBox* m_comboStopBits;
 		wxStaticText* m_staticTextParity;
-		wxTextCtrl* m_textParity;
+		wxComboBox* m_comboParity;
 		wxMenuBar* m_menubar3;
 		wxMenu* MenuHelp;
 

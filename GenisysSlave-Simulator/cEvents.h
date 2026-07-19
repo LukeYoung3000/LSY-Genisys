@@ -28,17 +28,22 @@ class cEvents : public cFrame
 {
 public:
 
-	// UI States
-	int udp_rx_port_;
-	int udp_tx_port_;
+	// Protocol Configuration
 	int genisys_slave_id_;
 	int genisys_frame_size_;
+
+	// Network Configuration
+	int udp_rx_port_;
+	int udp_tx_port_;
+
+	// Serial Configuration
 	std::string serial_com_port_;
 	int serial_baud_rate_;
 	int serial_data_bits_;
 	int serial_stop_bits_;
 	std::string serial_parity_;
 
+	// Frame Data
 	std::atomic<bool> bit_write_request_;
 	std::atomic<int> byte_offset_;
 	std::atomic<int> bit_offset_;

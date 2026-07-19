@@ -1,4 +1,4 @@
-
+﻿
 // STL
 #include <chrono>
 #include <sstream> 
@@ -93,13 +93,19 @@ void cEvents::ProtocolSelectionEvent(wxCommandEvent& event)
 	m_staticTextComPort->Enable(enable_serial);
 	m_comboComPort->Enable(enable_serial);
 	m_staticTextBaudRate->Enable(enable_serial);
-	m_textBaudRate->Enable(enable_serial);
+	m_comboBaudRate->Enable(enable_serial);
 	m_staticTextDataBits->Enable(enable_serial);
-	m_textDataBits->Enable(enable_serial);
+	m_comboDataBits->Enable(enable_serial);
 	m_staticTextStopBits->Enable(enable_serial);
-	m_textStopBits->Enable(enable_serial);
+	m_comboStopBits->Enable(enable_serial);
 	m_staticTextParity->Enable(enable_serial);
-	m_textParity->Enable(enable_serial);
+	m_comboParity->Enable(enable_serial);
+
+	if (enable_serial)
+	{
+		// Populate COM port dropdown with available ports
+		this->PopulateComPorts();
+	}
 
 	event.Skip();
 }
@@ -256,19 +262,47 @@ bool cEvents::StartupGenisysNetwork()
 
 	// Radio button "1" is "TCP"
 	// Note: We could use "m_radioBox1->GetString()" to confirm the choice strings. 
-	bool is_tcp = false;
-	if (m_radioBox1->GetSelection() == 1)
-		is_tcp = true;
+	int protocol_selection = m_radioBox1->GetSelection();
+	bool is_tcp = (protocol_selection == 1);
+	bool is_serial = (protocol_selection == 2);
 
 
 	// Get Parameters From GUI
 	bool int_check = true;
-	int_check = int_check && m_textUDPrx->GetValue().ToInt(&udp_rx_port_);					// Get Reciving/Listening Port
-	if (!is_tcp)
-		int_check = int_check && m_textUDPtx->GetValue().ToInt(&udp_tx_port_);				// Get Transmit Port (UDP Only)
+
+	if (is_serial)
+	{
+		// ToDo: Add serial port checking/validation here.
+
+		// Serial protocol - read from combo boxes
+		int com_port_idx = m_comboComPort->GetSelection();
+		if (com_port_idx == wxNOT_FOUND)
+		{
+			wxLogMessage("cEvents::StartupGenisysNetwork: No COM port selected");
+			ShutdownGenisysNetwork();
+			return false;
+		}
+
+		serial_com_port_ = std::string(m_comboComPort->GetString(com_port_idx).mb_str());
+		serial_baud_rate_ = std::stoi(std::string(m_comboBaudRate->GetString(m_comboBaudRate->GetSelection()).mb_str()));
+		serial_data_bits_ = std::stoi(std::string(m_comboDataBits->GetString(m_comboDataBits->GetSelection()).mb_str()));
+		wxString stop_bits_str = m_comboStopBits->GetString(m_comboStopBits->GetSelection());
+		serial_stop_bits_ = (stop_bits_str == wxT("1.5")) ? 1 : std::stoi(std::string(stop_bits_str.mb_str()));
+		wxString parity_str = m_comboParity->GetString(m_comboParity->GetSelection());
+		serial_parity_ = parity_str.Contains(wxT("E")) ? "E" : (parity_str.Contains(wxT("O")) ? "O" : "N");
+	}
+	else // TCP UDP Parameters
+	{
+		int_check = int_check && m_textUDPrx->GetValue().ToInt(&udp_rx_port_);
+
+		if (!is_tcp)
+			int_check = int_check && m_textUDPtx->GetValue().ToInt(&udp_tx_port_);				// Get Transmit Port (UDP Only)
+	}
+
+
+	// Protocol Parameters
 	int_check = int_check && m_textSlaveID->GetValue().ToInt(&genisys_slave_id_);			// Get Genisys Slave ID
 	int_check = int_check && m_textFrameSize->GetValue().ToInt(&genisys_frame_size_);		// Get Genisys Frame Size
-
 
 
 	if (int_check == false)
@@ -321,14 +355,31 @@ bool cEvents::StartupGenisysNetwork()
 		return false;
 	}
 
-	// Network Configuration
+	// Network/Serial Configuration
 	NetworkGenisysSlave::Config network_config_;
-	network_config_.server_port_ = udp_rx_port_;
-	network_config_.destination_port_ = udp_tx_port_;
-	if (is_tcp)
-		network_config_.connection_type_ = NetworkGenisysSlave::Config::CONNECTIONTYPE::TCP;
+
+	if (is_serial)
+	{
+		// Setup serial connection configuration
+		network_config_.connection_type_ = NetworkGenisysSlave::Config::CONNECTIONTYPE::SERIAL;
+		network_config_.com_port_ = serial_com_port_;
+		network_config_.baud_rate_ = serial_baud_rate_;
+		network_config_.data_bits_ = serial_data_bits_;
+		network_config_.stop_bits_ = serial_stop_bits_;
+		network_config_.parity_ = serial_parity_[0];  // Convert string to char
+		network_config_.read_timeout_ms_ = 100;
+		network_config_.write_timeout_ms_ = 100;
+	}
 	else
-		network_config_.connection_type_ = NetworkGenisysSlave::Config::CONNECTIONTYPE::UDP;
+	{
+		// Setup UDP/TCP connection configuration
+		network_config_.server_port_ = udp_rx_port_;
+		network_config_.destination_port_ = udp_tx_port_;
+		if (is_tcp)
+			network_config_.connection_type_ = NetworkGenisysSlave::Config::CONNECTIONTYPE::TCP;
+		else
+			network_config_.connection_type_ = NetworkGenisysSlave::Config::CONNECTIONTYPE::UDP;
+	}
 
 	network_ = std::make_shared<NetworkGenisysSlave>(network_config_);
 	if (!network_->AddProtocol(protocol_))
