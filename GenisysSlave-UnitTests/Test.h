@@ -19,7 +19,6 @@
   ((byte) & 0x01 ? '1' : '0') 
 
 
-
 class DataFrame_Tests
 {
 public:

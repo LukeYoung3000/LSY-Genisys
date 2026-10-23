@@ -1,10 +1,3 @@
-///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version 4.0.0-0-g0efcecf)
-// http://www.wxformbuilder.org/
-//
-// PLEASE DO *NOT* EDIT THIS FILE!
-///////////////////////////////////////////////////////////////////////////
-
 #pragma once
 
 #include <wx/artprov.h>
@@ -17,6 +10,7 @@
 #include <wx/settings.h>
 #include <wx/radiobox.h>
 #include <wx/textctrl.h>
+#include <wx/combobox.h>
 #include <wx/tglbtn.h>
 #include <wx/bitmap.h>
 #include <wx/image.h>
@@ -62,11 +56,23 @@ class cFrame : public wxFrame
 		wxGrid* m_grid3;
 		wxStaticText* m_staticText111;
 		wxGrid* m_grid31;
+		wxStaticText* m_staticTextSerialSettings;
+		wxStaticText* m_staticTextComPort;
+		wxComboBox* m_comboComPort;
+		wxStaticText* m_staticTextBaudRate;
+		wxComboBox* m_comboBaudRate;
+		wxStaticText* m_staticTextDataBits;
+		wxComboBox* m_comboDataBits;
+		wxStaticText* m_staticTextStopBits;
+		wxComboBox* m_comboStopBits;
+		wxStaticText* m_staticTextParity;
+		wxComboBox* m_comboParity;
 		wxMenuBar* m_menubar3;
 		wxMenu* MenuHelp;
 
 		// Virtual event handlers, override them in your derived class
 		virtual void TopLevelWindowCloseEvent( wxCloseEvent& event ) { event.Skip(); }
+		virtual void ProtocolSelectionEvent( wxCommandEvent& event ) { event.Skip(); }
 		virtual void StartStopServerEvent( wxCommandEvent& event ) { event.Skip(); }
 		virtual void GridClickEvent( wxGridEvent& event ) { event.Skip(); }
 		virtual void MenuHelpLogOnMenuSelection( wxCommandEvent& event ) { event.Skip(); }
@@ -78,6 +84,8 @@ class cFrame : public wxFrame
 		cFrame( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxT("Genisys Slave Application"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 864,655 ), long style = wxDEFAULT_FRAME_STYLE|wxTAB_TRAVERSAL );
 
 		~cFrame();
+
+		void PopulateComPorts();
 
 };
 

@@ -1,17 +1,14 @@
-///////////////////////////////////////////////////////////////////////////
-// C++ code generated with wxFormBuilder (version 4.0.0-0-g0efcecf)
-// http://www.wxformbuilder.org/
-//
-// PLEASE DO *NOT* EDIT THIS FILE!
-///////////////////////////////////////////////////////////////////////////
-
 #include "cFrame.h"
+
+#ifdef __WXMSW__
+	#include <windows.h>
+#endif
 
 ///////////////////////////////////////////////////////////////////////////
 
 cFrame::cFrame( wxWindow* parent, wxWindowID id, const wxString& title, const wxPoint& pos, const wxSize& size, long style ) : wxFrame( parent, id, title, pos, size, style )
 {
-	this->SetSizeHints( wxSize( 845,600 ), wxDefaultSize );
+	this->SetSizeHints( wxSize( 1000, 934 ), wxDefaultSize );
 	this->SetForegroundColour( wxSystemSettings::GetColour( wxSYS_COLOUR_ACTIVEBORDER ) );
 
 	wxBoxSizer* bSizer1;
@@ -34,7 +31,7 @@ cFrame::cFrame( wxWindow* parent, wxWindowID id, const wxString& title, const wx
 	m_staticText4->Wrap( -1 );
 	bSizer7->Add( m_staticText4, 0, wxALIGN_CENTER|wxALL, 5 );
 
-	wxString m_radioBox1Choices[] = { wxT("UDP"), wxT("TCP") };
+	wxString m_radioBox1Choices[] = { wxT("UDP"), wxT("TCP"), wxT("Serial") };
 	int m_radioBox1NChoices = sizeof( m_radioBox1Choices ) / sizeof( wxString );
 	m_radioBox1 = new wxRadioBox( m_panel1, wxID_ANY, wxT("Protocol"), wxDefaultPosition, wxDefaultSize, m_radioBox1NChoices, m_radioBox1Choices, 1, wxRA_SPECIFY_COLS );
 	m_radioBox1->SetSelection( 0 );
@@ -57,6 +54,58 @@ cFrame::cFrame( wxWindow* parent, wxWindowID id, const wxString& title, const wx
 	m_staticText5 = new wxStaticText( m_panel1, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticText5->Wrap( -1 );
 	bSizer7->Add( m_staticText5, 0, wxALIGN_CENTER|wxALL, 5 );
+
+	m_staticTextSerialSettings = new wxStaticText( m_panel1, wxID_ANY, wxT("Serial Settings:"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticTextSerialSettings->Wrap( -1 );
+	bSizer7->Add( m_staticTextSerialSettings, 0, wxALIGN_CENTER|wxALL, 2 );
+
+	m_staticTextComPort = new wxStaticText( m_panel1, wxID_ANY, wxT("COM Port"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticTextComPort->Wrap( -1 );
+	bSizer7->Add( m_staticTextComPort, 0, wxALIGN_CENTER|wxALL, 2 );
+
+	m_comboComPort = new wxComboBox( m_panel1, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0, NULL, wxCB_READONLY );
+	bSizer7->Add( m_comboComPort, 0, wxALIGN_CENTER|wxALL, 2 );
+
+	m_staticTextBaudRate = new wxStaticText( m_panel1, wxID_ANY, wxT("Baud Rate"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticTextBaudRate->Wrap( -1 );
+	bSizer7->Add( m_staticTextBaudRate, 0, wxALIGN_CENTER|wxALL, 2 );
+
+	wxString m_comboBaudRateChoices[] = { wxT("9600"), wxT("19200"), wxT("38400"), wxT("57600"), wxT("115200") };
+	int m_comboBaudRateNChoices = sizeof( m_comboBaudRateChoices ) / sizeof( wxString );
+	m_comboBaudRate = new wxComboBox( m_panel1, wxID_ANY, wxT("9600"), wxDefaultPosition, wxDefaultSize, m_comboBaudRateNChoices, m_comboBaudRateChoices, wxCB_READONLY );
+	m_comboBaudRate->SetSelection( 0 );
+	bSizer7->Add( m_comboBaudRate, 0, wxALIGN_CENTER|wxALL, 2 );
+
+	m_staticTextDataBits = new wxStaticText( m_panel1, wxID_ANY, wxT("Data Bits"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticTextDataBits->Wrap( -1 );
+	bSizer7->Add( m_staticTextDataBits, 0, wxALIGN_CENTER|wxALL, 2 );
+
+	wxString m_comboDataBitsChoices[] = { wxT("5"), wxT("6"), wxT("7"), wxT("8") };
+	int m_comboDataBitsNChoices = sizeof( m_comboDataBitsChoices ) / sizeof( wxString );
+	m_comboDataBits = new wxComboBox( m_panel1, wxID_ANY, wxT("8"), wxDefaultPosition, wxDefaultSize, m_comboDataBitsNChoices, m_comboDataBitsChoices, wxCB_READONLY );
+	m_comboDataBits->SetSelection( 3 );
+	bSizer7->Add( m_comboDataBits, 0, wxALIGN_CENTER|wxALL, 2 );
+
+	m_staticTextStopBits = new wxStaticText( m_panel1, wxID_ANY, wxT("Stop Bits"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticTextStopBits->Wrap( -1 );
+	bSizer7->Add( m_staticTextStopBits, 0, wxALIGN_CENTER|wxALL, 2 );
+
+	wxString m_comboStopBitsChoices[] = { wxT("1"), wxT("1.5"), wxT("2") };
+	int m_comboStopBitsNChoices = sizeof( m_comboStopBitsChoices ) / sizeof( wxString );
+	m_comboStopBits = new wxComboBox( m_panel1, wxID_ANY, wxT("1"), wxDefaultPosition, wxDefaultSize, m_comboStopBitsNChoices, m_comboStopBitsChoices, wxCB_READONLY );
+	m_comboStopBits->SetSelection( 0 );
+	bSizer7->Add( m_comboStopBits, 0, wxALIGN_CENTER|wxALL, 2 );
+
+	m_staticTextParity = new wxStaticText( m_panel1, wxID_ANY, wxT("Parity"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_staticTextParity->Wrap( -1 );
+	bSizer7->Add( m_staticTextParity, 0, wxALIGN_CENTER|wxALL, 2 );
+
+	wxString m_comboParityChoices[] = { wxT("None (N)"), wxT("Even (E)"), wxT("Odd (O)") };
+	int m_comboParityNChoices = sizeof( m_comboParityChoices ) / sizeof( wxString );
+	m_comboParity = new wxComboBox( m_panel1, wxID_ANY, wxT("None (N)"), wxDefaultPosition, wxDefaultSize, m_comboParityNChoices, m_comboParityChoices, wxCB_READONLY );
+	m_comboParity->SetSelection( 0 );
+	bSizer7->Add( m_comboParity, 0, wxALIGN_CENTER|wxALL, 2 );
+	//bSizer7->Add( m_textParity, 0, wxALIGN_CENTER|wxALL, 2 );
 
 	m_staticText6 = new wxStaticText( m_panel1, wxID_ANY, wxT("Slave ID"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticText6->Wrap( -1 );
@@ -496,18 +545,69 @@ cFrame::cFrame( wxWindow* parent, wxWindowID id, const wxString& title, const wx
 
 	this->Centre( wxBOTH );
 
+	// Populate COM port dropdown with available ports
+	this->PopulateComPorts();
+
+	// Disable serial controls by default (UDP is selected initially)
+	m_staticTextSerialSettings->Enable( false );
+	m_staticTextComPort->Enable( false );
+	m_comboComPort->Enable( false );
+	m_staticTextBaudRate->Enable( false );
+	m_comboBaudRate->Enable( false );
+	m_staticTextDataBits->Enable( false );
+	m_comboDataBits->Enable( false );
+	m_staticTextStopBits->Enable( false );
+	m_comboStopBits->Enable( false );
+	m_staticTextParity->Enable( false );
+	m_comboParity->Enable( false );
+
 	// Connect Events
 	this->Connect( wxEVT_CLOSE_WINDOW, wxCloseEventHandler( cFrame::TopLevelWindowCloseEvent ) );
+	m_radioBox1->Connect( wxEVT_COMMAND_RADIOBOX_SELECTED, wxCommandEventHandler( cFrame::ProtocolSelectionEvent ), NULL, this );
 	m_toggleStartStop->Connect( wxEVT_COMMAND_TOGGLEBUTTON_CLICKED, wxCommandEventHandler( cFrame::StartStopServerEvent ), NULL, this );
 	m_grid3->Connect( wxEVT_GRID_CELL_LEFT_CLICK, wxGridEventHandler( cFrame::GridClickEvent ), NULL, this );
 	MenuHelp->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( cFrame::MenuHelpLogOnMenuSelection ), this, MenuHelpLog->GetId());
 	MenuHelp->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( cFrame::MenuHelpAboutOnMenuSelection ), this, MenuHelpAbout->GetId());
 }
 
+void cFrame::PopulateComPorts()
+{
+	m_comboComPort->Clear();
+
+	// Windows: Check for available COM ports by attempting to query the system
+	for (int i = 1; i <= 256; ++i)
+	{
+		wxString portName = wxString::Format(wxT("COM%d"), i);
+
+		// Try to open the port to check if it exists
+		HANDLE hPort = CreateFileA(
+			portName.mb_str(),
+			GENERIC_READ | GENERIC_WRITE,
+			0,
+			NULL,
+			OPEN_EXISTING,
+			FILE_ATTRIBUTE_NORMAL,
+			NULL
+		);
+
+		if (hPort != INVALID_HANDLE_VALUE)
+		{
+			CloseHandle(hPort);
+			m_comboComPort->Append(portName);
+		}
+	}
+
+
+	// Set default selection if any ports are available
+	if (m_comboComPort->GetCount() > 0)
+		m_comboComPort->SetSelection(0);
+}
+
 cFrame::~cFrame()
 {
 	// Disconnect Events
 	this->Disconnect( wxEVT_CLOSE_WINDOW, wxCloseEventHandler( cFrame::TopLevelWindowCloseEvent ) );
+	m_radioBox1->Disconnect( wxEVT_COMMAND_RADIOBOX_SELECTED, wxCommandEventHandler( cFrame::ProtocolSelectionEvent ), NULL, this );
 	m_toggleStartStop->Disconnect( wxEVT_COMMAND_TOGGLEBUTTON_CLICKED, wxCommandEventHandler( cFrame::StartStopServerEvent ), NULL, this );
 	m_grid3->Disconnect( wxEVT_GRID_CELL_LEFT_CLICK, wxGridEventHandler( cFrame::GridClickEvent ), NULL, this );
 

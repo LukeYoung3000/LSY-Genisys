@@ -19,6 +19,11 @@ namespace LSY
 		server_socket_ = INVALID_SOCKET;
 		client_socket_ = INVALID_SOCKET;
 
+		// Serial
+		com_handle_ = INVALID_HANDLE_VALUE;
+		ZeroMemory(&dcb_config_, sizeof(DCB));
+		ZeroMemory(&timeouts_, sizeof(COMMTIMEOUTS));
+
 		// Buffer
 		bytes_received = 0;
 		server_buf_len = 1024;
@@ -33,8 +38,13 @@ namespace LSY
 
 	bool NetworkGenisysSlave::StartServer()
 	{
+		// Handle Serial Connection Type
+		if (configuration_.connection_type_ == NetworkGenisysSlave::Config::CONNECTIONTYPE::SERIAL)
+		{
+			return StartSerialServer();
+		}
 
-		// Startup WSA
+		// Startup WSA for TCP/UDP
 		int res = WSAStartup(MAKEWORD(2, 2), &wsa_data);
 		if (res != NO_ERROR)
 		{
@@ -123,6 +133,11 @@ namespace LSY
 
 	bool NetworkGenisysSlave::ServerLoop()
 	{
+		// Handle Serial Connection Type
+		if (configuration_.connection_type_ == NetworkGenisysSlave::Config::CONNECTIONTYPE::SERIAL)
+		{
+			return SerialServerLoop();
+		}
 
 		// Check "server_socket_" is valid
 		if (server_socket_ == INVALID_SOCKET)
@@ -284,6 +299,11 @@ namespace LSY
 
 	bool NetworkGenisysSlave::ShutdownServer()
 	{
+		// Handle Serial Connection Type
+		if (configuration_.connection_type_ == NetworkGenisysSlave::Config::CONNECTIONTYPE::SERIAL)
+		{
+			return ShutdownSerialServer();
+		}
 
 		if (server_socket_ != INVALID_SOCKET)
 		{
@@ -333,6 +353,7 @@ namespace LSY
 			log_msg_buffer_size,						// size of msgbuf, bytes
 			NULL);										// va_list of arguments
 
+
 		if (log_msg_buffer[0] == '\0') // Message Buffer Is Empty
 			Logging::LogErrorF("NetworkGenisysSlave::LogWSAError: WSA Error [%d]", err);
 		else
@@ -341,5 +362,344 @@ namespace LSY
 
 		return true;
 	}
+
+
+	bool NetworkGenisysSlave::StartSerialServer()
+	{
+		// Convert COM port string to wide string for CreateFileW
+		int wchar_count = MultiByteToWideChar(CP_ACP, 0, configuration_.com_port_.c_str(), -1, NULL, 0);
+		wchar_t com_port_wide[20];
+		MultiByteToWideChar(CP_ACP, 0, configuration_.com_port_.c_str(), -1, com_port_wide, wchar_count);
+
+		// Open COM Port
+		com_handle_ = CreateFileW(
+			com_port_wide,
+			GENERIC_READ | GENERIC_WRITE,
+			0,                              // Exclusive access
+			NULL,
+			OPEN_EXISTING,
+			0,                              // No special attributes
+			NULL
+		);
+
+		if (com_handle_ == INVALID_HANDLE_VALUE)
+		{
+			DWORD error_code = GetLastError();
+			Logging::LogErrorF("NetworkGenisysSlave::StartSerialServer: Failed to open COM port [%s], Error Code [%lu]",
+				configuration_.com_port_.c_str(), error_code);
+			return false;
+		}
+
+		// Get current DCB settings
+		if (!GetCommState(com_handle_, &dcb_config_))
+		{
+			DWORD error_code = GetLastError();
+			Logging::LogErrorF("NetworkGenisysSlave::StartSerialServer: Failed to get COM port state [%s], Error Code [%lu]",
+				configuration_.com_port_.c_str(), error_code);
+			CloseHandle(com_handle_);
+			com_handle_ = INVALID_HANDLE_VALUE;
+			return false;
+		}
+
+		// Configure DCB settings based on configuration
+		dcb_config_.BaudRate = configuration_.baud_rate_;
+		dcb_config_.ByteSize = configuration_.data_bits_;
+		dcb_config_.StopBits = (configuration_.stop_bits_ == 2) ? TWOSTOPBITS : ONESTOPBIT;
+		dcb_config_.fParity = TRUE;
+
+		// Set parity
+		switch (configuration_.parity_)
+		{
+		case 'N':
+		case 'n':
+			dcb_config_.Parity = NOPARITY;
+			dcb_config_.fParity = FALSE;
+			break;
+		case 'E':
+		case 'e':
+			dcb_config_.Parity = EVENPARITY;
+			break;
+		case 'O':
+		case 'o':
+			dcb_config_.Parity = ODDPARITY;
+			break;
+		default:
+			dcb_config_.Parity = NOPARITY;
+			dcb_config_.fParity = FALSE;
+		}
+
+		// Disable flow control
+		dcb_config_.fOutxCtsFlow = FALSE;
+		dcb_config_.fRtsControl = RTS_CONTROL_DISABLE;
+		dcb_config_.fOutxDsrFlow = FALSE;
+		dcb_config_.fDtrControl = DTR_CONTROL_DISABLE;
+		dcb_config_.fInX = FALSE;
+		dcb_config_.fOutX = FALSE;
+
+		// Set the new DCB settings
+		if (!SetCommState(com_handle_, &dcb_config_))
+		{
+			DWORD error_code = GetLastError();
+			Logging::LogErrorF("NetworkGenisysSlave::StartSerialServer: Failed to set COM port state [%s], Error Code [%lu]",
+				configuration_.com_port_.c_str(), error_code);
+			CloseHandle(com_handle_);
+			com_handle_ = INVALID_HANDLE_VALUE;
+			return false;
+		}
+
+		// Configure timeouts for non-blocking read/write
+		timeouts_.ReadIntervalTimeout = MAXDWORD;
+		timeouts_.ReadTotalTimeoutMultiplier = 0;
+		timeouts_.ReadTotalTimeoutConstant = configuration_.read_timeout_ms_;
+		timeouts_.WriteTotalTimeoutMultiplier = 0;
+		timeouts_.WriteTotalTimeoutConstant = configuration_.write_timeout_ms_;
+
+		if (!SetCommTimeouts(com_handle_, &timeouts_))
+		{
+			DWORD error_code = GetLastError();
+			Logging::LogErrorF("NetworkGenisysSlave::StartSerialServer: Failed to set COM port timeouts [%s], Error Code [%lu]",
+				configuration_.com_port_.c_str(), error_code);
+			CloseHandle(com_handle_);
+			com_handle_ = INVALID_HANDLE_VALUE;
+			return false;
+		}
+
+		// Purge any existing data in the buffers
+		if (!PurgeComm(com_handle_, PURGE_RXCLEAR | PURGE_TXCLEAR))
+		{
+			DWORD error_code = GetLastError();
+			Logging::LogErrorF("NetworkGenisysSlave::StartSerialServer: Failed to purge COM port buffers [%s], Error Code [%lu]",
+				configuration_.com_port_.c_str(), error_code);
+			CloseHandle(com_handle_);
+			com_handle_ = INVALID_HANDLE_VALUE;
+				return false;
+		}
+
+				Logging::LogDebugF("NetworkGenisysSlave::StartSerialServer: [%s] Serial Server Started at %lu baud",
+					configuration_.com_port_.c_str(), configuration_.baud_rate_);
+
+				return true;
+	}
+
+
+	bool NetworkGenisysSlave::SerialServerLoop()
+	{
+		// ==================================================================================
+		// VALIDITY CHECK
+		// ==================================================================================
+		// Verify the serial port handle is valid and open
+		if (com_handle_ == INVALID_HANDLE_VALUE)
+		{
+			Logging::LogErrorF("NetworkGenisysSlave::SerialServerLoop: [%s] Invalid COM port handle",
+				configuration_.com_port_.c_str());
+			return false;
+		}
+	
+	
+		// ==================================================================================
+		// DATA RECEPTION - Read message from serial port
+		// ==================================================================================
+		// Clear the server buffer before reading
+		ZeroMemory(server_buf, sizeof(server_buf));
+	
+		// Attempt to read data from the serial port
+		// ReadFile() is synchronous but respects the timeout values set in SetCommTimeouts()
+		DWORD bytes_read = 0;
+		BOOL read_status = ReadFile(
+			com_handle_,                    // Serial port handle
+			server_buf,                     // Buffer to store received data
+			server_buf_len,                 // Maximum bytes to read
+			&bytes_read,                    // Output: actual bytes read
+			NULL                            // No overlapped I/O
+		);
+	
+		// Check if Read operation failed
+		if (!read_status)
+		{
+			DWORD error_code = GetLastError();
+			// Note: ERROR_SEM_TIMEOUT is expected when no data is available and timeout expires
+			if (error_code != ERROR_SEM_TIMEOUT)
+			{
+				Logging::LogErrorF("NetworkGenisysSlave::SerialServerLoop: [%s] Serial read failed, Error Code [%lu]",
+					configuration_.com_port_.c_str(), error_code);
+			}
+			return false;
+		}
+	
+		// If no bytes were read, the timeout expired with no data available
+		if (bytes_read == 0)
+		{
+			// This is normal operation - just no data received yet
+			// Return false to indicate no processing occurred this cycle
+			return false;
+		}
+	
+		// Store number of bytes received for later processing
+		bytes_received = bytes_read;
+	
+		// ==================================================================================
+		// LOG RECEPTION
+		// ==================================================================================
+		// Log successful reception of serial data
+		Logging::LogDebugF("NetworkGenisysSlave::SerialServerLoop: [%s] Received %d bytes from serial port",
+			configuration_.com_port_.c_str(), bytes_received);
+	
+	
+		// ==================================================================================
+		// MESSAGE CONVERSION - Convert buffer to vector format
+		// ==================================================================================
+		// The protocol layer expects std::vector<uint8_t>, so convert the char buffer
+		std::vector<uint8_t> recv_msg;
+		for (int i = 0; i < bytes_received; i++)
+		{
+			recv_msg.push_back(static_cast<uint8_t>(server_buf[i]));
+		}
+	
+		// Note: Serial communication doesn't have source IP concept like network protocols
+		// Using empty string for source_ip_str parameter in protocol processing
+		std::string source_ip_str = "SERIAL:" + configuration_.com_port_;
+		
+	
+		// ==================================================================================
+		// PROTOCOL PROCESSING - Process message through Genisys protocol layer
+		// ==================================================================================
+		// The protocol layer validates, parses, and generates response message
+		std::vector<uint8_t> respond_msg = recv_msg;
+		if (!protocol_->ProcessMessages(respond_msg, source_ip_str))
+		{
+			Logging::LogErrorF("NetworkGenisysSlave::SerialServerLoop: [%s] Protocol processing failed",
+				configuration_.com_port_.c_str());
+			return false;
+		}
+	
+	
+		// ==================================================================================
+		// RESPONSE BUFFER PREPARATION - Pack response vector back into buffer
+		// ==================================================================================
+		// Verify the response message fits in the server buffer
+		if (respond_msg.size() > server_buf_len)
+		{
+			Logging::LogErrorF("NetworkGenisysSlave::SerialServerLoop: [%s] Response message too large [%zu bytes]",
+				configuration_.com_port_.c_str(), respond_msg.size());
+			return false;
+		}
+	
+		// Clear the server buffer
+		ZeroMemory(server_buf, sizeof(server_buf));
+	
+		// Copy response vector into character buffer
+		size_t response_size = respond_msg.size();
+		for (size_t i = 0; i < response_size; i++)
+		{
+			server_buf[i] = static_cast<char>(respond_msg[i]);
+		}
+	
+	
+		// ==================================================================================
+		// DATA TRANSMISSION - Write response message back to serial port
+		// ==================================================================================
+		// Attempt to write the response message to the serial port
+		DWORD bytes_written = 0;
+		BOOL write_status = WriteFile(
+			com_handle_,                    // Serial port handle
+			server_buf,                     // Buffer containing data to send
+			static_cast<DWORD>(response_size), // Number of bytes to write
+			&bytes_written,                 // Output: actual bytes written
+			NULL                            // No overlapped I/O
+		);
+	
+		// Check if Write operation failed
+		if (!write_status)
+		{
+			DWORD error_code = GetLastError();
+			Logging::LogErrorF("NetworkGenisysSlave::SerialServerLoop: [%s] Serial write failed, Error Code [%lu]",
+				configuration_.com_port_.c_str(), error_code);
+			return false;
+		}
+	
+		// Verify all bytes were written
+		// Note: On Windows serial ports, bytes_written should match response_size unless error occurred
+		if (bytes_written != response_size)
+		{
+			Logging::LogErrorF("NetworkGenisysSlave::SerialServerLoop: [%s] Incomplete write - sent %lu of %zu bytes",
+				configuration_.com_port_.c_str(), bytes_written, response_size);
+			return false;
+		}
+	
+		// ==================================================================================
+				// LOG TRANSMISSION
+				// ==================================================================================
+				// Log successful transmission of response
+				Logging::LogDebugF("NetworkGenisysSlave::SerialServerLoop: [%s] Sent %lu bytes to serial port",
+					configuration_.com_port_.c_str(), bytes_written);
+	
+				// Successful completion
+				return true;
+	}
+
+
+	bool NetworkGenisysSlave::ShutdownSerialServer()
+	{
+		// ==================================================================================
+		// VALIDITY CHECK
+		// ==================================================================================
+		// Check if the serial port handle is valid
+		if (com_handle_ == INVALID_HANDLE_VALUE)
+		{
+			Logging::LogDebugF("NetworkGenisysSlave::ShutdownSerialServer: [%s] Serial port already closed",
+				configuration_.com_port_.c_str());
+			return true;  // Already closed, not an error
+		}
+
+
+		// ==================================================================================
+		// PURGE BUFFERS
+		// ==================================================================================
+		// Flush any pending data in the transmit buffer before closing
+		// This ensures any final messages are sent before connection closes
+		if (!PurgeComm(com_handle_, PURGE_TXCLEAR | PURGE_RXCLEAR))
+		{
+			DWORD error_code = GetLastError();
+			Logging::LogErrorF("NetworkGenisysSlave::ShutdownSerialServer: [%s] Failed to purge buffers before close, Error Code [%lu]",
+				configuration_.com_port_.c_str(), error_code);
+			// Continue with close even if purge fails
+		}
+
+
+		// ==================================================================================
+		// CLOSE SERIAL PORT
+		// ==================================================================================
+		// Close the serial port handle
+		// CloseHandle() will flush any pending writes and release system resources
+		if (!CloseHandle(com_handle_))
+		{
+			DWORD error_code = GetLastError();
+			Logging::LogErrorF("NetworkGenisysSlave::ShutdownSerialServer: [%s] Failed to close COM port, Error Code [%lu]",
+				configuration_.com_port_.c_str(), error_code);
+			// Still mark as closed even if CloseHandle reports error
+		}
+
+		// Mark handle as invalid to prevent further operations
+		com_handle_ = INVALID_HANDLE_VALUE;
+
+
+		// ==================================================================================
+		// CLEAN UP STRUCTURES
+		// ==================================================================================
+		// Clear the DCB and timeout structures to indicate serial port is not configured
+		ZeroMemory(&dcb_config_, sizeof(DCB));
+		ZeroMemory(&timeouts_, sizeof(COMMTIMEOUTS));
+
+
+		// ==================================================================================
+		// LOG CLOSURE
+		// ==================================================================================
+		// Log successful serial port closure
+		Logging::LogDebugF("NetworkGenisysSlave::ShutdownSerialServer: [%s] Serial Server Shutdown Complete",
+			configuration_.com_port_.c_str());
+
+		return true;
+	}
+
 
 }

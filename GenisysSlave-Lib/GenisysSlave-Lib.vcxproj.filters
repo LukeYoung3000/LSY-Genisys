@@ -38,10 +38,10 @@
     <ClCompile Include="src\GenisysSlave-Lib-Logging.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\NetworkGenisysSlave.cpp">
+    <ClCompile Include="src\ProtocolGenisysSlave.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\ProtocolGenisysSlave.cpp">
+    <ClCompile Include="src\NetworkGenisysSlave.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
