@@ -1,4 +1,4 @@
-﻿
+
 <!-- PROJECT SCREEN SHOT -->
 ![Product Name Screen Shot][product-screenshot]
 Note: This screenshot is of GenisysSlave-Simulator version 0.3.0.6
@@ -33,6 +33,11 @@ See [library usage](GenisysMaster-Lib/README.md).
 **GenisysMaster-Console** provides a fixed dashboard with indication/control views,
 local control editing, explicit sending, and an event log. Use `--plain` for scrolling
 text. See [console setup and controls](GenisysMaster-Console/README.md).
+
+**GenisysMaster-GUI** is a Qt Widgets desktop application using the same master
+library. It supports XML load/save, slave editing, shared-endpoint UDP polling,
+live indications, explicit control drafts/sends, and a filterable event log.
+See [GUI setup, checks and packaging](GenisysMaster-GUI/README.md).
 
 ## Usage (For Users)
 

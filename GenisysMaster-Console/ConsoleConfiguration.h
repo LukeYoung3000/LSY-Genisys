@@ -21,3 +21,4 @@ struct ConsoleConfiguration
 // Loads into a temporary object; failures leave the caller's settings unchanged.
 // Throws an actionable error for malformed XML, unknown settings or bad values.
 void LoadConsoleConfiguration(const std::string& path, ConsoleConfiguration& configuration);
+void LoadConsoleConfiguration(const std::wstring& path, ConsoleConfiguration& configuration);

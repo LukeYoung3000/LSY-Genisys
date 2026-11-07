@@ -19,6 +19,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "GenisysMaster-Lib", "Genisy
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "GenisysMaster-Console", "GenisysMaster-Console\GenisysMaster-Console.vcxproj", "{6EE9136F-AD18-403A-A8D7-14573DF353B6}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "GenisysMaster-GUI", "GenisysMaster-GUI\GenisysMaster-GUI.vcxproj", "{7490F2EF-4D43-4D75-85F0-B947FEA5178B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -27,6 +29,12 @@ Global
 		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{7490F2EF-4D43-4D75-85F0-B947FEA5178B}.Debug|x64.ActiveCfg = Debug|x64
+		{7490F2EF-4D43-4D75-85F0-B947FEA5178B}.Debug|x64.Build.0 = Debug|x64
+		{7490F2EF-4D43-4D75-85F0-B947FEA5178B}.Debug|x86.ActiveCfg = Debug|x64
+		{7490F2EF-4D43-4D75-85F0-B947FEA5178B}.Release|x64.ActiveCfg = Release|x64
+		{7490F2EF-4D43-4D75-85F0-B947FEA5178B}.Release|x64.Build.0 = Release|x64
+		{7490F2EF-4D43-4D75-85F0-B947FEA5178B}.Release|x86.ActiveCfg = Release|x64
 		{6EE9136F-AD18-403A-A8D7-14573DF353B6}.Debug|x64.ActiveCfg = Debug|x64
 		{6EE9136F-AD18-403A-A8D7-14573DF353B6}.Debug|x64.Build.0 = Debug|x64
 		{6EE9136F-AD18-403A-A8D7-14573DF353B6}.Debug|x86.ActiveCfg = Debug|Win32

@@ -41,6 +41,12 @@ public:
 		if (sent_include_mode_) { mode_acknowledged_ = true; acknowledged_mode_ = sent_mode_; }
 		result_ = "ACKNOWLEDGED; finishing exchange";
 	}
+	void OnStopped()
+	{
+		if (!active_) return;
+		active_ = false;
+		result_ = response_acknowledged_ ? "ACKNOWLEDGED; exchange stopped" : "STOPPED - outcome unknown";
+	}
 	void OnTransaction(const LSY::NetworkGenisysMaster::TransactionEvent& event)
 	{
 		using Event = LSY::NetworkGenisysMaster::TRANSACTIONEVENT;

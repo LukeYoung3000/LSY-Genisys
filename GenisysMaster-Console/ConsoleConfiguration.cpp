@@ -77,7 +77,7 @@ namespace
 	}
 }
 
-void LoadConsoleConfiguration(const std::string& path, ConsoleConfiguration& configuration)
+template<typename Path> void LoadConfigurationImpl(const Path& path, const std::string& displayPath, ConsoleConfiguration& configuration)
 {
 	try
 	{
@@ -138,5 +138,14 @@ void LoadConsoleConfiguration(const std::string& path, ConsoleConfiguration& con
 		if (loaded.slaves.empty()) Fail("<Slaves> must contain at least one <Slave>");
 		configuration = loaded;
 	}
-	catch (const std::exception& error) { throw std::runtime_error("Config '" + path + "': " + error.what()); }
+	catch (const std::exception& error) { throw std::runtime_error("Config '" + displayPath + "': " + error.what()); }
+}
+
+void LoadConsoleConfiguration(const std::string& path, ConsoleConfiguration& configuration)
+{
+    LoadConfigurationImpl(path, path, configuration);
+}
+void LoadConsoleConfiguration(const std::wstring& path, ConsoleConfiguration& configuration)
+{
+    LoadConfigurationImpl(path, pugi::as_utf8(path.c_str()), configuration);
 }
