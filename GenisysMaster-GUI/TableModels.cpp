@@ -10,7 +10,7 @@ namespace
     using Comm = LSY::NetworkGenisysMaster::COMMUNICATIONSTATUS;
     QString StatusName(const MasterSession& session, Comm status)
     {
-        if (!session.running()) return "STOPPED";
+        if (!session.running() && session.lastError().isEmpty()) return "STOPPED";
         return status == Comm::ONLINE ? "ONLINE" : status == Comm::OFFLINE ? "OFFLINE" : "UNKNOWN";
     }
     QIcon Dot(const QColor& color)
@@ -34,14 +34,14 @@ QVariant SlaveTableModel::data(const QModelIndex& index, int role) const
     if (role == Qt::DisplayRole)
     {
         if (index.column() == 0) return int(state.configuration.id);
-        if (index.column() == 1) return QString::fromStdString(state.configuration.endpoint.ip_address_) + ":" + QString::number(state.configuration.endpoint.port_);
+        if (index.column() == 1) return session_.destination(state.configuration.id);
         if (index.column() == 2) return StatusName(session_, state.status.communication);
     }
     if (role == Qt::DecorationRole && index.column() == 2)
     {
         static const QIcon online = Dot(QColor("#24a148")), offline = Dot(QColor("#da4141")), unknown = Dot(QColor("#8c98a5"));
         return session_.running() && state.status.communication == Comm::ONLINE ? online :
-            session_.running() && state.status.communication == Comm::OFFLINE ? offline : unknown;
+            state.status.communication == Comm::OFFLINE && (session_.running() || !session_.lastError().isEmpty()) ? offline : unknown;
     }
     if (role == Qt::TextAlignmentRole && index.column() == 0) return int(Qt::AlignCenter);
     if (role == Qt::ToolTipRole) return QString("%1 indications; %2 completed; %3 timeouts%4")
@@ -51,10 +51,10 @@ QVariant SlaveTableModel::data(const QModelIndex& index, int role) const
 }
 QVariant SlaveTableModel::headerData(int section, Qt::Orientation orientation, int role) const
 {
-    if (orientation == Qt::Horizontal && role == Qt::DisplayRole) return QStringList{"ID", "Endpoint", "Status"}.value(section);
+    if (orientation == Qt::Horizontal && role == Qt::DisplayRole) return QStringList{"ID", session_.serial() ? "Bus" : "Endpoint", "Status"}.value(section);
     return {};
 }
-void SlaveTableModel::refresh() { if (rowCount()) emit dataChanged(index(0, 0), index(rowCount() - 1, 2)); }
+void SlaveTableModel::refresh() { emit headerDataChanged(Qt::Horizontal, 1, 1); if (rowCount()) emit dataChanged(index(0, 0), index(rowCount() - 1, 2)); }
 
 ByteTableModel::ByteTableModel(MasterSession& session, bool controls, QObject* parent)
     : QAbstractTableModel(parent), session_(session), controls_(controls) {}

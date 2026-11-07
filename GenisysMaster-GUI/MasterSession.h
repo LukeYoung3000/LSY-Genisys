@@ -1,6 +1,7 @@
 #pragma once
 #include "ConsoleConfiguration.h"
 #include "ConsoleControls.h"
+#include "ConsoleRecalls.h"
 #include <QObject>
 #include <QDateTime>
 #include <QElapsedTimer>
@@ -27,6 +28,10 @@ public:
     const std::vector<Slave>& slaves() const { return slaves_; }
     const Slave* slave(int id) const;
     bool running() const { return network_ != nullptr; }
+    bool serial() const { return configuration_.network.connection_type_ == LSY::NetworkGenisysMaster::Config::CONNECTIONTYPE::SERIAL; }
+    bool busyForControl(int id) const;
+    const QString& lastError() const { return lastError_; }
+    QString destination(int id) const;
     uint16_t localPort() const;
     qint64 elapsed() const { return clock_.elapsed(); }
     void applyConfiguration(const ConsoleConfiguration& configuration);
@@ -48,6 +53,10 @@ private:
     std::vector<Slave> slaves_;
     std::shared_ptr<LSY::ProtocolGenisysMaster> protocol_;
     std::unique_ptr<LSY::NetworkGenisysMaster> network_;
+    std::unique_ptr<ConsoleRecalls> recalls_;
+    QString lastError_;
+    friend struct MasterSessionTestAccess;
+    std::function<std::unique_ptr<LSY::NetworkGenisysMaster>(LSY::NetworkGenisysMaster::Config)> networkFactory_;
     QTimer processTimer_;
     QElapsedTimer clock_;
     Slave* mutableSlave(int id);

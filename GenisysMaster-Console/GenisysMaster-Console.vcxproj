@@ -24,9 +24,11 @@
     <ClCompile Include="ConsoleConfiguration.cpp" />
     <ClCompile Include="third_party\pugixml\pugixml.cpp" />
     <ClInclude Include="ConsoleConfiguration.h" />
+    <ClInclude Include="ConsoleRecalls.h" />
     <ClInclude Include="third_party\pugixml\pugixml.hpp" />
     <ClInclude Include="third_party\pugixml\pugiconfig.hpp" />
     <None Include="GenisysMaster.example.xml" />
+    <None Include="GenisysMaster.serial.example.xml" />
     <ClInclude Include="ConsoleDashboard.h" />
     <ClInclude Include="ConsoleControls.h" />
   </ItemGroup>
@@ -177,7 +179,7 @@
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <Target Name="CopyExampleConfiguration" AfterTargets="Build">
-    <Copy SourceFiles="$(ProjectDir)GenisysMaster.example.xml" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(ProjectDir)GenisysMaster.example.xml;$(ProjectDir)GenisysMaster.serial.example.xml" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
   </Target>
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

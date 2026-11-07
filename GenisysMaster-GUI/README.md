@@ -1,9 +1,9 @@
 # GenisysMaster-GUI
 
 A Qt Widgets desktop test application linked to GenisysMaster-Lib. It provides
-XML configuration, multiple slave IDs on one UDP socket, scheduled polling,
+XML configuration, multiple slave IDs on one UDP socket or COM port, scheduled polling,
 manual recalls, live indication tables, control editing and an event log.
-It starts stopped; click Start to open the socket. See PACKAGE-README.txt for
+It starts stopped; click Start to open the selected transport. See PACKAGE-README.txt for
 operator instructions and the commented GenisysMaster.example.xml for settings.
 
 ## Developer setup
@@ -85,7 +85,7 @@ Qt/pugixml source and license references.
 
 MasterSession owns configuration, indication frames, per-slave control drafts,
 and the native protocol/network objects. A precise 10 ms Qt timer services the
-library's nonblocking UDP processing on the GUI thread. No worker thread accesses
+library's nonblocking UDP/serial processing on the GUI thread. No worker thread accesses
 the frames. Table models expose existing data; the window refreshes at 100 ms
 without resetting selection, scrolling or uncommitted control editors. Recent
 indication changes are amber; stale data is grey. The event model retains 1000.
@@ -99,7 +99,7 @@ list resets transient frames/drafts; saving XML saves settings only.
 
 The existing console XML loader and vendored pugixml are compiled into this GUI
 project. A wide-path loader overload supports Windows Unicode filenames; XML
-saves use QSaveFile for atomic replacement. No socket starts as a side effect of
+saves use QSaveFile for atomic replacement. No socket or COM port starts as a side effect of
 loading XML. Console-only XML options are preserved but ignored here. Optional
 CLI flags: --config path and --start. The master library itself has no Qt dependency.
 
@@ -111,7 +111,7 @@ CLI flags: --config path and --start. The master library itself has no Qt depend
 
 The script builds a separate GenisysMaster-GUI-Checks.exe with /p:GuiChecks=true,
 then runs the real window with QtTest widget actions and the existing slave
-protocol over loopback UDP. It needs no external device or running simulator.
+protocol over loopback UDP and an injected serial byte-stream peer. It needs no external device or running simulator.
 Checks cover shared endpoints, polling, indications, stale/offline/recovery,
 bit/hex controls, mode, acknowledgements, no automatic FC retry, Stop in flight,
 per-slave drafts, XML round-trips/Unicode/error handling, Add/Edit/Remove dialogs,
@@ -119,5 +119,48 @@ and event filtering/bounds. Reports and a running-window PNG go under
 builds/x64/Debug. Failure returns nonzero; the check process has a 60 s timeout.
 QtTest and the slave test peer are only linked in the check build, not the GUI.
 
-The six existing master/console check executables remain available through
+The eight master/console check executables remain available through
 GenisysMaster-Lib/tests/RunChecks.cmd in an x64 Native Tools prompt.
+
+## Serial use and implementation
+
+Choose Serial (COM) in Transport, select/type a COM name, and set baud, parity,
+stop bits, write timeout and optional fixed DTR/RTS levels. The editable COM list
+is populated from Windows' SERIALCOMM registry values; Refresh preserves the
+selected/typed name. No QtSerialPort module or additional serial library is needed.
+Eight data bits are fixed because Genisys requires them. For RS-485, use an adapter
+with automatic transmit-direction control. Start/Stop locks/unlocks settings as
+for UDP. In serial mode the slave editor only needs ID and frame size, and the
+slave table and details show the shared COM bus. UDP stays the launch default.
+
+Both XML examples are copied beside Debug/Release executables and included in
+the Release ZIP. GenisysMaster.serial.example.xml uses the console's version-1
+schema; GUI saves can be loaded by the console. Save stores the selected transport
+settings and retains known UDP mappings, while serial-only IDs remain endpoint-free.
+Switching serial-only IDs to UDP requires editing in real IP/port mappings before
+Start or Save. Normal XML loading stays stopped, even if console-only one-shot flags
+are present. --start is the explicit opt-in for immediate communications.
+
+MasterSession reuses ConsoleRecalls so manual recalls, including Recall all,
+queue behind an active exchange and ahead of new scheduled polls. Serial exchanges
+are serialized across all IDs. The network Process(false) overload suspends only
+new automatic requests while the queue drains; responses, deadlines and retries
+continue. Controls are explicit and never queued or automatically retransmitted;
+the Send buttons account for any ID owning the shared bus. Unanswered control
+outcomes remain uncertain. Stop drops queued recalls and retains local drafts.
+
+On a fatal serial I/O error, response/transaction events are consumed before
+retiring the network. The GUI keeps cached data stale, shows offline/error status,
+unlocks configuration, and offers Start to reconnect. Drafts are retained but never
+sent by reconnecting. Ordinary response timeouts keep the port open and allow
+normal offline recovery. The protocol and data-frame implementations remain unchanged.
+
+GUI checks also exercise serial widget population/editing, refresh preservation,
+ID-only dialogs, XML/Unicode round-trips and failed-save atomicity, shared-bus
+recalls/control gating, byte-fragmented indications, ACKs/timeouts, port failure
+and reconnect using the real session/controller with a private injected backend.
+The stream peer is shared with the library's serial checks. The private factory
+is only a test seam; normal builds and all user-visible transports use Windows I/O.
+Native unavailable-COM diagnostics are checked too. Actual connected-COM driver
+traffic still needs physical or virtual paired ports; it is explicitly reported
+as skipped. Reports include GuiChecks.png (UDP) and GuiSerialChecks.png (serial).

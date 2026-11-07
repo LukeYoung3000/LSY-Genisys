@@ -36,6 +36,7 @@ Copy-Item -LiteralPath (Join-Path $project '..\LICENSE.txt') -Destination $packa
 Copy-Item -LiteralPath (Join-Path $project 'PACKAGE-README.txt') -Destination (Join-Path $package 'README.txt')
 [IO.File]::WriteAllText((Join-Path $package 'qt.conf'), "[Paths]`r`nPrefix=.`r`nPlugins=.`r`n")
 Copy-Item -LiteralPath (Join-Path $project 'GenisysMaster.example.xml') -Destination $package
+Copy-Item -LiteralPath (Join-Path $project 'GenisysMaster.serial.example.xml') -Destination $package
 $pugiLicense = Join-Path $package 'licenses\pugixml'
 New-Item -ItemType Directory -Force -Path $pugiLicense | Out-Null
 Copy-Item -LiteralPath (Join-Path $project '..\GenisysMaster-Console\third_party\pugixml\LICENSE.md') -Destination $pugiLicense

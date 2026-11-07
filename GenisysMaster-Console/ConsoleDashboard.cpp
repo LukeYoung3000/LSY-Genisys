@@ -1,3 +1,4 @@
+#include "ConsoleConfiguration.h"
 #include "ConsoleDashboard.h"
 #include <algorithm>
 #include <ctime>
@@ -220,7 +221,7 @@ bool ConsoleDashboard::Render(const std::vector<Slave>& slaves, const LSY::Netwo
 	height_ = info.srWindow.Bottom - info.srWindow.Top + 1;
 	CHAR_INFO blank{}; blank.Char.AsciiChar = ' '; blank.Attributes = normal;
 	cells_.assign(static_cast<size_t>(width_) * height_, blank);
-	Put(0, 0, "GENISYS MASTER | UDP " + config.local_ip_ + ":" + std::to_string(network.GetLocalPort()), cyan);
+	Put(0, 0, "GENISYS MASTER | " + ConsoleTransportDescription(config, network.GetLocalPort()), cyan);
 	if (width_ < 76 || height_ < 24)
 	{
 		Put(0, 2, "Resize terminal to at least 76 columns x 24 rows.", yellow);
@@ -259,7 +260,7 @@ bool ConsoleDashboard::Render(const std::vector<Slave>& slaves, const LSY::Netwo
 		selected_ = (std::min)(selected_, slaves.size() - 1);
 		if (selected_ < slave_top_) slave_top_ = selected_;
 		if (selected_ >= slave_top_ + table_rows) slave_top_ = selected_ - table_rows + 1;
-		Put(0, 3, "  ID   Endpoint              Status   Data     Busy Complete  Timeouts  Retry", cyan);
+		Put(0, 3, "  ID   Endpoint / Bus        Status   Data     Busy Complete  Timeouts  Retry", cyan);
 		for (size_t row = 0; row < table_rows; ++row)
 		{
 			const size_t index = slave_top_ + row;
@@ -268,7 +269,7 @@ bool ConsoleDashboard::Render(const std::vector<Slave>& slaves, const LSY::Netwo
 			LSY::NetworkGenisysMaster::SlaveStatus status; network.GetSlaveStatus(slave.id, status);
 			std::ostringstream text;
 			text << (index == selected_ ? "> " : "  ") << std::setw(3) << unsigned(slave.id) << "  " << std::left << std::setw(22)
-				<< (slave.endpoint.ip_address_ + ":" + std::to_string(slave.endpoint.port_)) << std::setw(9) << StatusName(status.communication)
+				<< ConsoleSlaveDestination(config, slave.endpoint) << std::setw(9) << StatusName(status.communication)
 				<< std::setw(9) << (status.indications_current ? "Current" : "Stale") << std::setw(5) << (status.busy ? "yes" : "no")
 				<< std::setw(10) << status.completed_count << std::setw(10) << status.timeout_count << status.retries;
 			const WORD color = index == selected_ ? selected : status.communication == Comm::ONLINE ? green : status.communication == Comm::OFFLINE ? red : yellow;

@@ -15,6 +15,8 @@ rem   All NetworkGenisysMaster checks passed.
 rem   All PollingGenisysMaster checks passed.
 rem   All ConsoleControls checks passed.
 rem   All ConsoleConfiguration checks passed.
+rem   All SerialGenisysMaster checks passed.
+rem   All ConsoleApp checks passed.
 rem A failed check prints FAIL with an explanation. Build or check failures
 rem return exit code 1; success returns exit code 0.
 rem
@@ -24,13 +26,15 @@ rem This script builds GenisysMaster-Lib in Debug x64 using MSBuild, then uses
 rem the Visual C++ compiler (cl) to compile MasterDataFrameChecks.cpp and
 rem ProtocolGenisysMasterChecks.cpp separately, linking each against the library.
 rem
-rem It runs six resulting console executables:
+rem It runs eight resulting console executables:
 rem   GenisysMaster-Lib\builds\x64\Debug\checks\MasterDataFrameChecks.exe
 rem   GenisysMaster-Lib\builds\x64\Debug\checks\ProtocolGenisysMasterChecks.exe
 rem   GenisysMaster-Lib\builds\x64\Debug\checks\NetworkGenisysMasterChecks.exe
 rem   GenisysMaster-Lib\builds\x64\Debug\checks\PollingGenisysMasterChecks.exe
 rem   GenisysMaster-Lib\builds\x64\Debug\checks\ConsoleControlsChecks.exe
 rem   GenisysMaster-Lib\builds\x64\Debug\checks\ConsoleConfigurationChecks.exe
+rem   GenisysMaster-Lib\builds\x64\Debug\checks\SerialGenisysMasterChecks.exe
+rem   GenisysMaster-Lib\builds\x64\Debug\checks\ConsoleAppChecks.exe
 rem The first executable creates data frames in memory and verifies bit/byte access,
 rem bounds, control snapshots and acknowledgement, indication callbacks,
 rem duplicate-event suppression, mode updates, and invalid payload rejection.
@@ -45,9 +49,16 @@ rem messages, retry limits, offline recovery and controls that time out without
 rem retransmission. The fifth checks console control drafts, explicit sends,
 rem slave control callbacks, mode/full-frame sends and uncertain outcomes.
 rem The sixth validates XML loading, defaults, error reporting and the example.
-rem No external device or running simulator is required.
+rem The seventh uses an injected serial byte-stream peer to check scheduling,
+rem fragments, controls, failures and restart without a COM driver. It also
+rem checks native serial setting validation; physical COM I/O needs hardware.
+rem The eighth builds and launches the actual console with redirected I/O to
+rem check serial diagnostics, CLI/XML precedence and real UDP recalls/polling.
+rem Optional real serial test (after the build, using two connected COM ports):
+rem   builds\x64\Debug\checks\SerialGenisysMasterChecks.exe COM10 COM11
+rem The default run needs no external device or running simulator.
 rem
-rem All six executables are built by this script, not separate solution projects.
+rem All eight executables are built by this script, not separate solution projects.
 rem Test build products stay under builds\x64\Debug\checks. The script restores
 rem the original working directory before exiting.
 rem ---------------------------------------------------------------------------
@@ -85,6 +96,16 @@ if errorlevel 1 goto failed
 cl /nologo /EHsc /W4 /MDd /Zi /I include /I ..\GenisysMaster-Console tests\ConsoleConfigurationChecks.cpp ..\GenisysMaster-Console\ConsoleConfiguration.cpp ..\GenisysMaster-Console\third_party\pugixml\pugixml.cpp /Fo:builds\x64\Debug\checks\ /Fd:builds\x64\Debug\checks\ConfigCompiler.pdb /Fe:builds\x64\Debug\checks\ConsoleConfigurationChecks.exe /link /PDB:builds\x64\Debug\checks\ConsoleConfigurationChecks.pdb
 if errorlevel 1 goto failed
 builds\x64\Debug\checks\ConsoleConfigurationChecks.exe
+if errorlevel 1 goto failed
+cl /nologo /EHsc /W4 /MDd /Zi /I include /I ..\GenisysSlave-Lib\include tests\SerialGenisysMasterChecks.cpp /Fo:builds\x64\Debug\checks\SerialGenisysMasterChecks.obj /Fd:builds\x64\Debug\checks\SerialCompiler.pdb /Fe:builds\x64\Debug\checks\SerialGenisysMasterChecks.exe /link builds\x64\Debug\GenisysMaster-Lib.lib ..\GenisysSlave-Lib\builds\x64\Debug\GenisysSlave-Lib.lib /PDB:builds\x64\Debug\checks\SerialGenisysMasterChecks.pdb
+if errorlevel 1 goto failed
+builds\x64\Debug\checks\SerialGenisysMasterChecks.exe
+if errorlevel 1 goto failed
+msbuild ..\GenisysMaster-Console\GenisysMaster-Console.vcxproj /p:Configuration=Debug /p:Platform=x64 /v:minimal /nologo
+if errorlevel 1 goto failed
+cl /nologo /EHsc /W4 /MDd /Zi /I include /I ..\GenisysSlave-Lib\include tests\ConsoleAppChecks.cpp /Fo:builds\x64\Debug\checks\ConsoleAppChecks.obj /Fd:builds\x64\Debug\checks\ConsoleAppCompiler.pdb /Fe:builds\x64\Debug\checks\ConsoleAppChecks.exe /link builds\x64\Debug\GenisysMaster-Lib.lib ..\GenisysSlave-Lib\builds\x64\Debug\GenisysSlave-Lib.lib /PDB:builds\x64\Debug\checks\ConsoleAppChecks.pdb
+if errorlevel 1 goto failed
+builds\x64\Debug\checks\ConsoleAppChecks.exe
 if errorlevel 1 goto failed
 popd
 exit /b 0

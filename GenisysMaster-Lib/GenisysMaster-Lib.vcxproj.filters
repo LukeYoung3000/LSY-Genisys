@@ -41,6 +41,8 @@
     <ClCompile Include="src\ProtocolGenisysMaster.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClInclude Include="src\MasterTransport.h"><Filter>Header Files</Filter></ClInclude>
+    <ClCompile Include="src\MasterTransport.cpp"><Filter>Source Files</Filter></ClCompile>
     <ClCompile Include="src\NetworkGenisysMaster.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

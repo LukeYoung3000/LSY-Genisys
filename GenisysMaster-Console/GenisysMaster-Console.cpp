@@ -1,5 +1,6 @@
 #include "ConsoleDashboard.h"
 #include "ConsoleConfiguration.h"
+#include "ConsoleRecalls.h"
 #include "GenisysMaster-Lib-Logging.h"
 
 #include <conio.h>
@@ -45,85 +46,44 @@ int main(int argc, char** argv)
 {
 	try
 	{
-		ConsoleConfiguration settings;
-		std::string config_path;
-		bool help_requested = false;
-		// Load XML first, so argument order never changes CLI precedence.
-		for (int i = 1; i < argc; ++i)
+		const auto arguments = ParseConsoleArguments(std::vector<std::string>(argv + 1, argv + argc));
+		if (arguments.help)
 		{
-			const std::string arg = argv[i];
-			if (arg == "--help") { help_requested = true; continue; }
-			if (arg == "--config")
-			{
-				if (!config_path.empty()) throw std::runtime_error("Use --config only once");
-				if (i + 1 >= argc) throw std::runtime_error("Missing XML file after --config");
-				config_path = argv[++i];
-				if (config_path.empty()) throw std::runtime_error("Empty --config path");
-			}
-			else if (arg == "--slave") i += 4;
-			else if (arg != "--plain" && arg != "--manual" && arg != "--recall-all" && i + 1 < argc) ++i;
+			std::cout << "GenisysMaster-Console [--config file.xml] [--transport udp|serial]\n"
+				"UDP: [--local-ip IPv4] [--local-port port] [--slave id IPv4 port frame-bytes]...\n"
+				"Serial: [--com-port COM10] [--baud 9600] [--parity N|E|O] [--data-bits 8]\n"
+				"  [--stop-bits 1|2] [--write-timeout-ms n] [--dtr true|false] [--rts true|false]\n"
+				"  [--serial-slave id frame-bytes]... (or existing --slave syntax; endpoints ignored)\n"
+				"Both: [--plain] [--manual] [--recall-all] [--wait-ms n] [--run-ms n]\n"
+				"  [--poll-ms n] [--timeout-ms n] [--retries n] [--recovery-ms n]\n"
+				"XML loads first; CLI flags override it; CLI slave entries replace the XML list.\n"
+				"Defaults: UDP 0.0.0.0:7170, slave 34 at 127.0.0.1:7169, 125 bytes.\n"
+				"Serial defaults: COM1, 9600 8N1, DTR/RTS off, write timeout 1000 ms.\n"
+				"IDs/ports/size accept decimal or 0x hex. --recall-all runs once then exits.\n"
+				"Serial recalls are queued; one exchange uses the bus at a time. Controls are not queued.\n"
+				"Default: fixed dashboard. --plain selects scrolling text (also used for redirected I/O).\n"
+				"Dashboard: C controls, J/K byte, Left/Right bit, Space toggle, E byte, M mode, S send, F full.\n"
+				"Up/Down select slave, PgUp/PgDn bytes, R recall, A recall all, H help, Q quit.\n"
+				"Plain: r <id>, r all, show <id>, controls <id>, setbyte <id> <offset> <value>\n"
+				"  setbit <id> <offset> <bit> <0|1>, mode <id> <value|off>, send <id>, sendall <id>, status, q.\n"
+				"Edits stay local until explicitly sent. Controls are never automatically retried.\n";
+			return 0;
 		}
-		if (!config_path.empty() && !help_requested) LoadConsoleConfiguration(config_path, settings);
-		auto& config = settings.network;
+		const auto& settings = arguments.settings;
+		const auto& config = settings.network;
+		const auto& config_path = arguments.config_path;
+		const bool serial = config.connection_type_ == LSY::NetworkGenisysMaster::Config::CONNECTIONTYPE::SERIAL;
+		const bool recall_all = settings.recall_all;
+		bool plain = settings.plain;
+		const unsigned wait_ms = settings.wait_ms, run_ms = settings.run_ms;
 		std::vector<Slave> slaves;
+		std::vector<uint8_t> slave_ids;
 		for (const auto& item : settings.slaves)
-			slaves.push_back({item.id, item.endpoint, std::make_shared<LSY::MasterDataFrame>("Indications " + std::to_string(item.id), item.frame_bytes)});
-		bool& recall_all = settings.recall_all;
-		bool& plain = settings.plain;
-		unsigned& wait_ms = settings.wait_ms;
-		unsigned& run_ms = settings.run_ms;
-		bool cli_slaves = false;
-		for (int i = 1; i < argc; ++i)
 		{
-			const std::string arg = argv[i];
-			if (arg == "--help")
-			{
-				std::cout << "GenisysMaster-Console [--config file.xml] [--local-ip IPv4] [--local-port port]\n"
-					"  [--slave id IPv4 port frame-bytes]... [--recall-all] [--wait-ms milliseconds]\n"
-					"  [--plain] [--manual] [--poll-ms n] [--timeout-ms n] [--retries n] [--recovery-ms n] [--run-ms n]\n"
-					"XML is loaded first; CLI flags override it; --slave replaces the XML slave list.\n"
-					"Defaults: local 0.0.0.0:7170, slave 34 at 127.0.0.1:7169, 125 bytes.\n"
-					"IDs/ports/size accept decimal or 0x hex. --recall-all runs once then exits.\n"
-					"Default: fixed dashboard. --plain enables scrolling text (also used for redirected I/O).\n"
-					"Dashboard: C controls, J/K byte, Left/Right bit, Space toggle, E byte, M mode, S send, F full.\n"
-					"Up/Down select slave, PgUp/PgDn bytes, R recall, A recall all, H help, Q quit.\n"
-					"Plain: r <id>, r all, show <id>, controls <id>, setbyte <id> <offset> <value>\n"
-					"  setbit <id> <offset> <bit> <0|1>, mode <id> <value|off>, send <id>, sendall <id>, status, q.\n"
-					"Edits are local until explicitly sent. Controls are not automatically retried.\n";
-				return 0;
-			}
-			if (arg == "--config") { if (i + 1 >= argc) throw std::runtime_error("Missing XML file after --config"); ++i; continue; }
-			if (arg == "--plain") { plain = true; continue; }
-			if (arg == "--recall-all") { recall_all = true; continue; }
-			if (arg == "--manual") { config.automatic_polling_ = false; continue; }
-			if (arg == "--slave" && i + 4 < argc)
-			{
-				if (!cli_slaves) { slaves.clear(); cli_slaves = true; }
-				Slave slave{};
-				slave.id = static_cast<uint8_t>(Number(argv[++i], 1, 255));
-				slave.endpoint.ip_address_ = argv[++i];
-				slave.endpoint.port_ = static_cast<uint16_t>(Number(argv[++i], 1, 65535));
-				const unsigned bytes = Number(argv[++i], 1, 224);
-				slave.indications = std::make_shared<LSY::MasterDataFrame>("Indications " + std::to_string(slave.id), bytes);
-				slaves.push_back(slave);
-				continue;
-			}
-			if (i + 1 >= argc) throw std::runtime_error("Missing argument for " + arg);
-			if (arg == "--local-ip") config.local_ip_ = argv[++i];
-			else if (arg == "--local-port") config.receive_port_ = static_cast<uint16_t>(Number(argv[++i], 0, 65535));
-			else if (arg == "--wait-ms") wait_ms = Number(argv[++i], 1, 600000);
-			else if (arg == "--poll-ms") config.poll_interval_ms_ = Number(argv[++i], 1, 600000);
-			else if (arg == "--timeout-ms") config.response_timeout_ms_ = Number(argv[++i], 1, 600000);
-			else if (arg == "--retries") config.retry_count_ = Number(argv[++i], 0, 100);
-			else if (arg == "--recovery-ms") config.recovery_interval_ms_ = Number(argv[++i], 1, 600000);
-			else if (arg == "--run-ms") run_ms = Number(argv[++i], 0, 600000);
-			else throw std::runtime_error("Unknown argument: " + arg);
+			slaves.push_back({item.id, item.endpoint, std::make_shared<LSY::MasterDataFrame>("Indications " + std::to_string(item.id), item.frame_bytes)});
+			slave_ids.push_back(item.id);
 		}
-		if (slaves.empty())
-			slaves.push_back({34, {"127.0.0.1", 7169}, std::make_shared<LSY::MasterDataFrame>("Indications 34", 125)});
-
-		if (recall_all) config.automatic_polling_ = false;
-		if (recall_all && run_ms) throw std::runtime_error("Use either --recall-all or --run-ms");
+		ConsoleRecalls recalls(slave_ids, serial);
 		ConsoleDashboard dashboard;
 		if (!plain && !dashboard.Start()) plain = true;
 		auto emit = [&](const std::string& text, bool error = false)
@@ -141,7 +101,7 @@ int main(int argc, char** argv)
 		{
 			slave.controls.Initialize(slave.id, slave.indications->GetNumBytes());
 			if (!protocol->AddDataFrame(slave.id, false, slave.indications) ||
-				!protocol->AddDataFrame(slave.id, true, slave.controls.frame) || !network.AddSlave(slave.id, slave.endpoint))
+				!protocol->AddDataFrame(slave.id, true, slave.controls.frame) || !(serial ? network.AddSlave(slave.id) : network.AddSlave(slave.id, slave.endpoint)))
 				throw std::runtime_error("Invalid or duplicate slave/endpoint configuration");
 			const uint8_t id = slave.id;
 			const auto frame = slave.indications;
@@ -163,16 +123,16 @@ int main(int argc, char** argv)
 					status == LSY::NetworkGenisysMaster::COMMUNICATIONSTATUS::OFFLINE ? "OFFLINE" : "UNKNOWN"));
 			};
 		network.AddStatusCallback(status_callback);
-		if (!network.Start()) throw std::runtime_error("Cannot bind UDP socket; check local IP/port");
+		if (!network.Start()) throw std::runtime_error(serial ? "Cannot open serial port; check COM name, availability and line settings" : "Cannot bind UDP socket; check local IP/port");
 		if (!config_path.empty()) emit("Config loaded: " + config_path);
-		emit("UDP bound to " + config.local_ip_ + ":" + std::to_string(network.GetLocalPort()));
+		emit(ConsoleTransportDescription(config, network.GetLocalPort()));
 		for (const auto& slave : slaves)
-			emit("Slave " + std::to_string(slave.id) + " -> " + slave.endpoint.ip_address_ + ":" + std::to_string(slave.endpoint.port_));
+			emit("Slave " + std::to_string(slave.id) + " -> " + ConsoleSlaveDestination(config, slave.endpoint));
 		std::map<uint8_t, bool> completed;
 		auto recall = [&](uint8_t id)
 		{
-			if (network.RequestRecall(id)) { completed[id] = false; emit("Recall sent: " + std::to_string(id)); return true; }
-			emit("Recall refused: slave " + std::to_string(id) + " is unknown, busy, or send failed", true);
+			if (recalls.Queue(id)) { completed[id] = false; emit("Recall queued: " + std::to_string(id)); return true; }
+			emit("Recall refused: slave " + std::to_string(id) + " is unknown", true);
 			return false;
 		};
 		auto find_slave = [&](uint8_t id) -> Slave&
@@ -214,7 +174,17 @@ int main(int argc, char** argv)
 		auto next_render = std::chrono::steady_clock::now();
 		for (;;)
 		{
-			if (!network.Process()) emit("UDP processing reported an error or rejected datagram", true);
+			bool transport_failed = false;
+			if (!network.Process(!recalls.Pending()))
+			{
+				emit(serial ? "Serial processing reported an error or rejected input" : "UDP processing reported an error or rejected datagram", true);
+				transport_failed = serial && !network.IsRunning();
+			}
+			for (const auto& request : transport_failed ? std::vector<ConsoleRecalls::Result>{} : recalls.Process(network))
+			{
+				emit(std::string(request.sent ? "Recall sent: " : "Recall send failed: ") + std::to_string(request.id), !request.sent);
+				if (!request.sent && recall_all) return 1;
+			}
 			for (const auto& response : network.GetResponses()) find_slave(response.slave_id).controls.OnResponse(response);
 			for (const auto& event : network.GetTransactionEvents())
 			{
@@ -235,6 +205,8 @@ int main(int argc, char** argv)
 				if (plain && response.type == LSY::ProtocolGenisysMaster::RESPONSETYPE::INDICATION_DATA)
 					for (const auto& slave : slaves) if (slave.id == response.slave_id) Show(slave);
 			}
+			// Report pending control outcomes before leaving a failed serial session.
+			if (transport_failed) { emit("Serial port closed after an I/O error; restart the console to reconnect", true); return 1; }
 			if (dashboard.Active())
 			{
 				for (const auto& action : dashboard.ReadActions(slaves))

@@ -6,6 +6,7 @@ namespace Ui { class MainWindow; }
 class SlaveTableModel; class ByteTableModel; class EventTableModel;
 class QSortFilterProxyModel; class QTableView; class QLineEdit; class QSpinBox;
 class QCheckBox; class QLabel; class QPushButton; class QAction;
+class QComboBox; class QStackedWidget;
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -28,6 +29,10 @@ private:
     QSortFilterProxyModel* eventFilter_ = nullptr;
     QTableView *slaveTable_ = nullptr, *indicationTable_ = nullptr, *controlTable_ = nullptr, *eventTable_ = nullptr;
     QLineEdit* localIp_ = nullptr;
+    QComboBox *transport_ = nullptr, *comPort_ = nullptr, *baud_ = nullptr, *parity_ = nullptr, *stopBits_ = nullptr;
+    QStackedWidget* transportPages_ = nullptr;
+    QSpinBox* writeTimeout_ = nullptr;
+    QCheckBox *dtr_ = nullptr, *rts_ = nullptr;
     QSpinBox *localPort_ = nullptr, *pollInterval_ = nullptr, *timeout_ = nullptr, *retries_ = nullptr, *recovery_ = nullptr, *mode_ = nullptr;
     QCheckBox *automatic_ = nullptr, *secure_ = nullptr, *includeMode_ = nullptr, *followEvents_ = nullptr;
     QLabel *connectionBadge_ = nullptr, *onlineCount_ = nullptr, *detailsTitle_ = nullptr,
@@ -45,5 +50,6 @@ private:
     void buildInterface(); void connectInterface(); void syncConfiguration(); void refresh();
     void selectSlave(int id); void selectionChanged(); void editSlave(bool adding); void removeSlave();
     void toggleRunning(); void chooseOpen(); void chooseSave(bool saveAs); void setDirty();
+    void refreshPorts();
     LSY::NetworkGenisysMaster::Config transportConfiguration() const;
 };

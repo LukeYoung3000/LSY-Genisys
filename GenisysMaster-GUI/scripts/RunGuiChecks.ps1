@@ -25,3 +25,4 @@ if (-not $process.WaitForExit(60000)) {
 if (Test-Path -LiteralPath $report) { Get-Content -LiteralPath $report }
 if ($process.ExitCode -ne 0) { throw ('GUI checks failed with exit code ' + $process.ExitCode) }
 Write-Output "Running-window screenshot: $screenshot"
+Write-Output ("Serial-window screenshot: " + (Join-Path $output 'GuiSerialChecks.png'))

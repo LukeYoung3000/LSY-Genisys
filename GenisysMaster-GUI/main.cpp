@@ -33,11 +33,11 @@ int main(int argc, char* argv[])
     QApplication::setFont(QFont("Segoe UI", 10));
     app.setApplicationName("GenisysMaster-GUI");
     app.setOrganizationName("LSY");
-    app.setApplicationVersion("0.2.0");
+    app.setApplicationVersion("0.3.0");
     QCommandLineParser parser;
-    parser.setApplicationDescription("Genisys master UDP test application");
+    parser.setApplicationDescription("Genisys master UDP/serial test application");
     parser.addOption({"config", "Load an XML configuration (starts stopped).", "path"});
-    parser.addOption({"start", "Start UDP communications after loading configuration."});
+    parser.addOption({"start", "Start communications after loading configuration."});
     parser.addHelpOption();
     parser.addVersionOption();
     parser.addOption({"smoke-test", "Verify library linkage, render the window and exit automatically."});

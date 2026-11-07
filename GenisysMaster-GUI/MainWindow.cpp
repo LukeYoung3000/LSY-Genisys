@@ -30,6 +30,10 @@
 #include <QToolBar>
 #include <QVBoxLayout>
 #include <QStyle>
+#include <QStackedWidget>
+#include <Windows.h>
+#include <QCollator>
+#pragma comment(lib, "Advapi32.lib")
 #include <algorithm>
 #include <sstream>
 #include <stdexcept>
@@ -85,18 +89,44 @@ void MainWindow::buildInterface()
     recallAction_ = connectionMenu->addAction("Recall selected"); recallAllAction_ = connectionMenu->addAction("Recall all");
     auto* root = new QVBoxLayout(ui_->centralWidget); root->setContentsMargins(8, 4, 8, 8); root->setSpacing(6);
     transportPanel_ = new QWidget(ui_->centralWidget); auto* settings = new QGridLayout(transportPanel_); settings->setContentsMargins(2, 0, 2, 0);
-    localIp_ = new QLineEdit(transportPanel_); localIp_->setObjectName("localIpEdit"); localIp_->setMaximumWidth(150);
-    localPort_ = Spin(transportPanel_, "localPortSpin", 0, 65535); pollInterval_ = Spin(transportPanel_, "pollIntervalSpin", 1, 600000, " ms");
-    timeout_ = Spin(transportPanel_, "timeoutSpin", 1, 600000, " ms"); retries_ = Spin(transportPanel_, "retriesSpin", 0, 100); recovery_ = Spin(transportPanel_, "recoverySpin", 1, 600000, " ms");
+    transport_ = new QComboBox(transportPanel_); transport_->setObjectName("transportCombo"); transport_->addItems({"UDP", "Serial (COM)"});
+    settings->addWidget(new QLabel("Transport", transportPanel_), 0, 0); settings->addWidget(transport_, 0, 1);
+    transportPages_ = new QStackedWidget(transportPanel_);
+    auto* udpPage = new QWidget(transportPages_); auto* udpSettings = new QHBoxLayout(udpPage); udpSettings->setContentsMargins(4, 0, 0, 0);
+    localIp_ = new QLineEdit(udpPage); localIp_->setObjectName("localIpEdit"); localIp_->setMaximumWidth(150);
+    localPort_ = Spin(udpPage, "localPortSpin", 0, 65535); localPort_->setToolTip("Zero asks Windows to choose a receive port.");
+    udpSettings->addWidget(new QLabel("Local IPv4", udpPage)); udpSettings->addWidget(localIp_);
+    udpSettings->addWidget(new QLabel("Receive port", udpPage)); udpSettings->addWidget(localPort_); udpSettings->addStretch();
+    transportPages_->addWidget(udpPage);
+    auto* serialPage = new QWidget(transportPages_); auto* serialSettings = new QGridLayout(serialPage); serialSettings->setContentsMargins(4, 0, 0, 0);
+    comPort_ = new QComboBox(serialPage); comPort_->setObjectName("comPortCombo"); comPort_->setEditable(true); comPort_->setInsertPolicy(QComboBox::NoInsert); comPort_->setMinimumContentsLength(7);
+    comPort_->setToolTip("Select a detected port or type a COM name. Refresh preserves the current value.");
+    auto* refresh = Button("Refresh", "refreshPortsButton", serialPage); refresh->setToolTip("Refresh the COM ports reported by Windows.");
+    baud_ = new QComboBox(serialPage); baud_->setObjectName("baudCombo"); baud_->setEditable(true); baud_->setInsertPolicy(QComboBox::NoInsert);
+    baud_->addItems({"300", "600", "1200", "2400", "4800", "9600", "19200", "38400", "57600", "115200", "230400", "460800", "921600"});
+    parity_ = new QComboBox(serialPage); parity_->setObjectName("parityCombo"); parity_->addItem("None", "N"); parity_->addItem("Even", "E"); parity_->addItem("Odd", "O");
+    stopBits_ = new QComboBox(serialPage); stopBits_->setObjectName("stopBitsCombo"); stopBits_->addItem("1", 1); stopBits_->addItem("2", 2);
+    writeTimeout_ = Spin(serialPage, "writeTimeoutSpin", 1, 600000, " ms");
+    dtr_ = new QCheckBox("DTR", serialPage); dtr_->setObjectName("dtrCheck"); rts_ = new QCheckBox("RTS", serialPage); rts_->setObjectName("rtsCheck");
+    for (auto* check : {dtr_, rts_}) check->setToolTip("Assert a fixed line level. Flow control and manual RS-485 direction switching are disabled.");
+    serialSettings->addWidget(new QLabel("COM port", serialPage), 0, 0); serialSettings->addWidget(comPort_, 0, 1); serialSettings->addWidget(refresh, 0, 2);
+    serialSettings->addWidget(new QLabel("Baud", serialPage), 0, 3); serialSettings->addWidget(baud_, 0, 4);
+    serialSettings->addWidget(new QLabel("Parity", serialPage), 0, 5); serialSettings->addWidget(parity_, 0, 6);
+    serialSettings->addWidget(new QLabel("Stop bits", serialPage), 0, 7); serialSettings->addWidget(stopBits_, 0, 8);
+    serialSettings->addWidget(new QLabel("Write timeout", serialPage), 0, 9); serialSettings->addWidget(writeTimeout_, 0, 10);
+    auto* serialNote = new QLabel("8 data bits  |  RS-485: use an adapter with automatic direction control.", serialPage); serialNote->setStyleSheet("color:#647184;");
+    serialSettings->addWidget(dtr_, 1, 0); serialSettings->addWidget(rts_, 1, 1); serialSettings->addWidget(serialNote, 1, 2, 1, 9);
+    transportPages_->addWidget(serialPage); settings->addWidget(transportPages_, 0, 2, 1, 10);
+    pollInterval_ = Spin(transportPanel_, "pollIntervalSpin", 1, 600000, " ms"); timeout_ = Spin(transportPanel_, "timeoutSpin", 1, 600000, " ms");
+    retries_ = Spin(transportPanel_, "retriesSpin", 0, 100); recovery_ = Spin(transportPanel_, "recoverySpin", 1, 600000, " ms");
     automatic_ = new QCheckBox("Automatic polling", transportPanel_); automatic_->setObjectName("automaticPollingCheck");
     secure_ = new QCheckBox("Secure polls (CRC)", transportPanel_); secure_->setObjectName("securePollingCheck");
-    settings->addWidget(new QLabel("Local UDP", transportPanel_), 0, 0); settings->addWidget(localIp_, 0, 1);
-    settings->addWidget(new QLabel("Receive port", transportPanel_), 0, 2); settings->addWidget(localPort_, 0, 3);
-    settings->addWidget(new QLabel("Poll", transportPanel_), 0, 4); settings->addWidget(pollInterval_, 0, 5);
-    settings->addWidget(new QLabel("Timeout", transportPanel_), 0, 6); settings->addWidget(timeout_, 0, 7);
-    settings->addWidget(new QLabel("Retries", transportPanel_), 0, 8); settings->addWidget(retries_, 0, 9);
-    settings->addWidget(new QLabel("Recovery", transportPanel_), 1, 0); settings->addWidget(recovery_, 1, 1);
-    settings->addWidget(automatic_, 1, 2, 1, 3); settings->addWidget(secure_, 1, 5, 1, 3); settings->setColumnStretch(10, 1); root->addWidget(transportPanel_);
+    settings->addWidget(new QLabel("Poll", transportPanel_), 1, 0); settings->addWidget(pollInterval_, 1, 1);
+    settings->addWidget(new QLabel("Response timeout", transportPanel_), 1, 2); settings->addWidget(timeout_, 1, 3);
+    settings->addWidget(new QLabel("Retries", transportPanel_), 1, 4); settings->addWidget(retries_, 1, 5);
+    settings->addWidget(new QLabel("Recovery", transportPanel_), 1, 6); settings->addWidget(recovery_, 1, 7);
+    settings->addWidget(automatic_, 1, 8, 1, 2); settings->addWidget(secure_, 1, 10, 1, 2); root->addWidget(transportPanel_);
+    connect(refresh, &QPushButton::clicked, this, &MainWindow::refreshPorts); refreshPorts();
     auto* vertical = new QSplitter(Qt::Vertical, ui_->centralWidget); vertical->setObjectName("verticalSplitter"); vertical->setChildrenCollapsible(false); root->addWidget(vertical, 1);
     auto* horizontal = new QSplitter(Qt::Horizontal, vertical); horizontal->setObjectName("mainSplitter"); horizontal->setChildrenCollapsible(false);
     auto* left = new QWidget(horizontal); left->setMinimumWidth(310); auto* leftLayout = new QVBoxLayout(left); leftLayout->setContentsMargins(0, 0, 0, 0);
@@ -185,12 +215,20 @@ void MainWindow::connectInterface()
         if (followEvents_->isChecked()) eventTable_->scrollToBottom();
     });
     connect(localIp_, &QLineEdit::textEdited, this, &MainWindow::setDirty);
-    for (auto* spin : {localPort_, pollInterval_, timeout_, retries_, recovery_}) connect(spin, &QSpinBox::valueChanged, this, &MainWindow::setDirty);
-    for (auto* check : {automatic_, secure_}) connect(check, &QCheckBox::toggled, this, &MainWindow::setDirty);
+    connect(transport_, &QComboBox::currentIndexChanged, this, [this](int index) { transportPages_->setCurrentIndex(index); setDirty(); });
+    for (auto* combo : {comPort_, baud_, parity_, stopBits_}) connect(combo, &QComboBox::currentTextChanged, this, &MainWindow::setDirty);
+    for (auto* spin : {localPort_, pollInterval_, timeout_, retries_, recovery_, writeTimeout_}) connect(spin, &QSpinBox::valueChanged, this, &MainWindow::setDirty);
+    for (auto* check : {automatic_, secure_, dtr_, rts_}) connect(check, &QCheckBox::toggled, this, &MainWindow::setDirty);
 }
 LSY::NetworkGenisysMaster::Config MainWindow::transportConfiguration() const
 {
     auto config = session_.configuration().network;
+    config.connection_type_ = transport_->currentIndex() == 1 ? LSY::NetworkGenisysMaster::Config::CONNECTIONTYPE::SERIAL : LSY::NetworkGenisysMaster::Config::CONNECTIONTYPE::UDP;
+    config.com_port_ = comPort_->currentText().trimmed().toStdString();
+    bool baudOk = false; config.baud_rate_ = baud_->currentText().trimmed().toUInt(&baudOk);
+    if (!baudOk || !config.baud_rate_) throw std::runtime_error("Baud rate must be a positive whole number (up to 4294967295).");
+    config.data_bits_ = 8; config.parity_ = parity_->currentData().toString().toLatin1().at(0); config.stop_bits_ = static_cast<uint8_t>(stopBits_->currentData().toUInt());
+    config.write_timeout_ms_ = writeTimeout_->value(); config.dtr_enable_ = dtr_->isChecked(); config.rts_enable_ = rts_->isChecked();
     config.local_ip_ = localIp_->text().trimmed().toStdString();
     config.receive_port_ = static_cast<uint16_t>(localPort_->value());
     config.poll_interval_ms_ = pollInterval_->value(); config.response_timeout_ms_ = timeout_->value();
@@ -198,11 +236,45 @@ LSY::NetworkGenisysMaster::Config MainWindow::transportConfiguration() const
     config.automatic_polling_ = automatic_->isChecked(); config.secure_poll_ = secure_->isChecked();
     return config;
 }
-void MainWindow::setDirty() { if (!loading_) { setWindowModified(true); pendingRefresh_ = true; } }
+void MainWindow::setDirty()
+{
+    if (loading_) return;
+    setWindowModified(true); pendingRefresh_ = true;
+    if (!session_.running())
+        try { session_.setTransportConfiguration(transportConfiguration()); }
+        catch (const std::exception&) { /* Keep the last valid preview; Start/Save report incomplete fields. */ }
+}
+void MainWindow::refreshPorts()
+{
+    const QString current = comPort_->currentText(); const bool wasLoading = loading_; loading_ = true;
+    QStringList names; HKEY ports = nullptr;
+    // Enumerate values directly: SERIALCOMM value names contain backslashes.
+    if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"HARDWARE\\DEVICEMAP\\SERIALCOMM", 0, KEY_QUERY_VALUE, &ports) == ERROR_SUCCESS)
+    {
+        for (DWORD index = 0; ; ++index)
+        {
+            wchar_t valueName[256]{}, value[256]{}; DWORD nameSize = 256, bytes = sizeof(value), type = 0;
+            const auto result = RegEnumValueW(ports, index, valueName, &nameSize, nullptr, &type, reinterpret_cast<BYTE*>(value), &bytes);
+            if (result == ERROR_NO_MORE_ITEMS) break;
+            if (result != ERROR_SUCCESS || type != REG_SZ) continue;
+            auto name = QString::fromWCharArray(value, static_cast<int>(bytes / sizeof(wchar_t)));
+            if (name.endsWith(QChar::Null)) name.chop(1);
+            if (name.startsWith("COM", Qt::CaseInsensitive)) names.append(name);
+        }
+        RegCloseKey(ports);
+    }
+    names.removeDuplicates(); QCollator collator; collator.setNumericMode(true);
+    std::sort(names.begin(), names.end(), [&collator](const QString& left, const QString& right) { return collator.compare(left, right) < 0; });
+    comPort_->clear(); comPort_->addItems(names); comPort_->setEditText(current.isEmpty() ? "COM1" : current); loading_ = wasLoading;
+}
 void MainWindow::syncConfiguration()
 {
     loading_ = true;
     const auto& config = session_.configuration().network;
+    transport_->setCurrentIndex(session_.serial() ? 1 : 0); transportPages_->setCurrentIndex(transport_->currentIndex());
+    comPort_->setEditText(QString::fromStdString(config.com_port_)); baud_->setEditText(QString::number(config.baud_rate_));
+    parity_->setCurrentIndex(parity_->findData(QString(QChar(config.parity_)))); stopBits_->setCurrentIndex(stopBits_->findData(int(config.stop_bits_)));
+    writeTimeout_->setValue(config.write_timeout_ms_); dtr_->setChecked(config.dtr_enable_); rts_->setChecked(config.rts_enable_);
     localIp_->setText(QString::fromStdString(config.local_ip_)); localPort_->setValue(config.receive_port_);
     pollInterval_->setValue(config.poll_interval_ms_); timeout_->setValue(config.response_timeout_ms_);
     retries_->setValue(config.retry_count_); recovery_->setValue(config.recovery_interval_ms_);
@@ -240,22 +312,25 @@ void MainWindow::refresh()
     runAction_->setText(running ? "Stop" : "Start"); runAction_->setIcon(style()->standardIcon(running ? QStyle::SP_MediaStop : QStyle::SP_MediaPlay));
     runAction_->setEnabled(running || !session_.slaves().empty());
     add_->setEnabled(!running); edit_->setEnabled(!running && state); remove_->setEnabled(!running && state);
-    connectionBadge_->setText(running ? "  UDP running  " : "  Stopped  ");
-    connectionBadge_->setStyleSheet(running ? "color:#147344; font-weight:600;" : "color:#647184; font-weight:600;");
-    recall_->setEnabled(running && state && !state->status.busy); recallAction_->setEnabled(recall_->isEnabled());
+    connectionBadge_->setText(running ? (session_.serial() ? "  Serial running  " : "  UDP running  ") : session_.lastError().isEmpty() ? "  Stopped  " : "  Connection error  ");
+    connectionBadge_->setToolTip(session_.lastError());
+    connectionBadge_->setStyleSheet(running ? "color:#147344; font-weight:600;" : session_.lastError().isEmpty() ? "color:#647184; font-weight:600;" : "color:#b32929; font-weight:600;");
+    recall_->setEnabled(running && state); recallAction_->setEnabled(recall_->isEnabled());
     recallAll_->setEnabled(running); recallAllAction_->setEnabled(running);
-    sendFull_->setEnabled(running && state && !state->status.busy);
+    sendFull_->setEnabled(running && state && !session_.busyForControl(selectedId_));
     send_->setEnabled(sendFull_->isEnabled() && (state->controls.Dirty() || state->controls.include_mode));
     controlTable_->setEnabled(state != nullptr); includeMode_->setEnabled(state != nullptr); mode_->setEnabled(state && includeMode_->isChecked());
     unsigned online = 0; for (const auto& item : session_.slaves()) if (item.status.communication == Comm::ONLINE) ++online;
     onlineCount_->setText(QString("%1 / %2 online").arg(online).arg(session_.slaves().size()));
-    statusBar()->showMessage(QString("%1  |  Local UDP %2:%3  |  %4")
-        .arg(running ? "Running" : "Stopped").arg(localIp_->text()).arg(session_.localPort()).arg(path_.isEmpty() ? "Unsaved configuration" : path_));
+    statusBar()->showMessage(QString("%1  |  %2  |  %3")
+        .arg(running ? "Running" : session_.lastError().isEmpty() ? "Stopped" : session_.lastError())
+        .arg(QString::fromStdString(ConsoleTransportDescription(session_.configuration().network, session_.localPort())))
+        .arg(path_.isEmpty() ? "Unsaved configuration" : path_));
     if (!state) {
         detailsTitle_->setText("No slave selected"); frameCounts_->clear(); dataState_->clear(); completed_->clear(); timeouts_->clear();
         indicationState_->setText("No data"); indicationMode_->clear(); updated_->clear(); controlResult_->clear(); return;
     }
-    detailsTitle_->setText(QString("Slave %1  |  %2:%3").arg(selectedId_).arg(QString::fromStdString(state->configuration.endpoint.ip_address_)).arg(state->configuration.endpoint.port_));
+    detailsTitle_->setText(QString("Slave %1  |  %2").arg(selectedId_).arg(session_.destination(selectedId_)));
     frameCounts_->setText(QString("%1 bytes / %2 bits").arg(state->configuration.frame_bytes).arg(state->configuration.frame_bytes * 8));
     const bool current = running && state->status.indications_current;
     dataState_->setText(current ? "Current" : "Stale cache");
@@ -273,7 +348,7 @@ void MainWindow::toggleRunning()
     try {
         if (session_.running()) session_.stop();
         else { session_.setTransportConfiguration(transportConfiguration()); session_.start(); }
-    } catch (const std::exception& error) { QMessageBox::warning(this, "Cannot start UDP", QString::fromUtf8(error.what())); }
+    } catch (const std::exception& error) { QMessageBox::warning(this, "Cannot start communications", QString::fromUtf8(error.what())); }
     pendingRefresh_ = true; refresh();
 }
 void MainWindow::editSlave(bool adding)
@@ -285,16 +360,21 @@ void MainWindow::editSlave(bool adding)
     QDialog dialog(this); dialog.setObjectName("slaveDialog"); dialog.setWindowTitle(adding ? "Add slave" : "Edit slave");
     auto* layout = new QFormLayout(&dialog);
     auto* id = Spin(&dialog, "slaveIdSpin", 1, 255); id->setValue(item.id);
-    auto* ip = new QLineEdit(QString::fromStdString(item.endpoint.ip_address_), &dialog); ip->setObjectName("slaveIpEdit");
+    const bool serial = transport_->currentIndex() == 1;
+    auto* ip = new QLineEdit(item.has_endpoint ? QString::fromStdString(item.endpoint.ip_address_) : QString(), &dialog); ip->setObjectName("slaveIpEdit");
     auto* port = Spin(&dialog, "slavePortSpin", 1, 65535); port->setValue(item.endpoint.port_);
     auto* bytes = Spin(&dialog, "slaveBytesSpin", 1, 224); bytes->setValue(item.frame_bytes);
-    layout->addRow("Slave ID", id); layout->addRow("Remote IPv4", ip); layout->addRow("Remote UDP port", port); layout->addRow("Frame bytes", bytes);
-    auto* note = new QLabel("Multiple IDs may share the same IP and port.\nApplying changes resets local drafts and cached indications.", &dialog); layout->addRow(note);
+    layout->addRow("Slave ID", id);
+    if (!serial) { layout->addRow("Remote IPv4", ip); layout->addRow("Remote UDP port", port); } else { ip->hide(); port->hide(); }
+    layout->addRow("Frame bytes", bytes);
+    auto* note = new QLabel(serial ? "All IDs share the selected COM port.\nApplying changes resets local drafts and cached indications." : "Multiple IDs may share the same IP and port.\nApplying changes resets local drafts and cached indications.", &dialog); layout->addRow(note);
     auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog); buttons->setObjectName("slaveDialogButtons"); layout->addRow(buttons);
     connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept); connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
     while (dialog.exec() == QDialog::Accepted) {
         auto config = session_.configuration(); config.network = transportConfiguration();
-        item.id = static_cast<uint8_t>(id->value()); item.endpoint = {ip->text().trimmed().toStdString(), static_cast<uint16_t>(port->value())}; item.frame_bytes = bytes->value();
+        item.id = static_cast<uint8_t>(id->value()); item.frame_bytes = bytes->value();
+        if (!serial) { item.endpoint = {ip->text().trimmed().toStdString(), static_cast<uint16_t>(port->value())}; item.has_endpoint = true; }
+        else if (adding) item.has_endpoint = false;
         if (adding) config.slaves.push_back(item);
         else for (auto& candidate : config.slaves) if (candidate.id == selectedId_) { candidate = item; break; }
         try { session_.applyConfiguration(config); selectSlave(item.id); setDirty(); break; }
@@ -343,12 +423,22 @@ bool MainWindow::saveConfiguration(const QString& path, QString* error)
     try {
         if (!session_.running()) session_.setTransportConfiguration(transportConfiguration());
         const auto& config = session_.configuration();
-        if (config.slaves.empty()) throw std::runtime_error("Add at least one slave before saving.");
+        ValidateConsoleConfiguration(config);
         pugi::xml_document document;
         document.append_child(pugi::node_declaration).append_attribute("version") = "1.0";
         document.append_child(pugi::node_comment).set_value(" Genisys Master configuration. Control drafts and cached indications are not saved. ");
-        auto root = document.append_child("GenisysMaster"); root.append_attribute("version") = "1";
-        auto udp = root.append_child("Udp"); udp.append_attribute("local-ip") = config.network.local_ip_.c_str(); udp.append_attribute("receive-port") = config.network.receive_port_;
+        auto root = document.append_child("GenisysMaster"); root.append_attribute("version") = "1"; root.append_attribute("transport") = session_.serial() ? "serial" : "udp";
+        if (session_.serial())
+        {
+            auto serial = root.append_child("Serial"); serial.append_attribute("port") = config.network.com_port_.c_str(); serial.append_attribute("baud-rate") = config.network.baud_rate_;
+            serial.append_attribute("data-bits") = config.network.data_bits_; serial.append_attribute("parity") = std::string(1, config.network.parity_).c_str();
+            serial.append_attribute("stop-bits") = config.network.stop_bits_; serial.append_attribute("write-timeout-ms") = config.network.write_timeout_ms_;
+            serial.append_attribute("dtr") = config.network.dtr_enable_; serial.append_attribute("rts") = config.network.rts_enable_;
+        }
+        else
+        {
+            auto udp = root.append_child("Udp"); udp.append_attribute("local-ip") = config.network.local_ip_.c_str(); udp.append_attribute("receive-port") = config.network.receive_port_;
+        }
         auto polling = root.append_child("Polling");
         polling.append_attribute("enabled") = config.network.automatic_polling_; polling.append_attribute("secure") = config.network.secure_poll_;
         polling.append_attribute("interval-ms") = config.network.poll_interval_ms_; polling.append_attribute("response-timeout-ms") = config.network.response_timeout_ms_;
@@ -358,8 +448,9 @@ bool MainWindow::saveConfiguration(const QString& path, QString* error)
         console.append_attribute("wait-ms") = config.wait_ms; console.append_attribute("run-ms") = config.run_ms;
         auto slaves = root.append_child("Slaves");
         for (const auto& item : config.slaves) {
-            auto node = slaves.append_child("Slave"); node.append_attribute("id") = item.id; node.append_attribute("ip") = item.endpoint.ip_address_.c_str();
-            node.append_attribute("port") = item.endpoint.port_; node.append_attribute("frame-bytes") = item.frame_bytes;
+            auto node = slaves.append_child("Slave"); node.append_attribute("id") = item.id;
+            if (item.has_endpoint) { node.append_attribute("ip") = item.endpoint.ip_address_.c_str(); node.append_attribute("port") = item.endpoint.port_; }
+            node.append_attribute("frame-bytes") = item.frame_bytes;
         }
         std::ostringstream stream; document.save(stream, "  "); const auto bytes = stream.str();
         QSaveFile file(path);

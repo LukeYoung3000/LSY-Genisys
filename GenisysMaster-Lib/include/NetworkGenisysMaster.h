@@ -12,6 +12,7 @@
 
 namespace LSY
 {
+	class MasterTransport; // Internal I/O backend; protocol/data frames remain transport-independent.
 	class NetworkGenisysMaster
 	{
 	public:
@@ -25,6 +26,16 @@ namespace LSY
 			uint32_t response_timeout_ms_ = 500;
 			uint32_t retry_count_ = 2; // Retransmissions after the initial send.
 			uint32_t recovery_interval_ms_ = 1000;
+			enum class CONNECTIONTYPE { UDP, SERIAL };
+			CONNECTIONTYPE connection_type_ = CONNECTIONTYPE::UDP;
+			std::string com_port_ = "COM1"; // COM1, COM10, or \\.\COM10.
+			uint32_t baud_rate_ = 9600;
+			uint8_t data_bits_ = 8; // Genisys requires all eight bits.
+			uint8_t stop_bits_ = 1; // 1 or 2.
+			char parity_ = 'N'; // N, E, O (case-insensitive).
+			uint32_t write_timeout_ms_ = 1000; // Entire serial write + driver drain.
+			bool dtr_enable_ = false; // Fixed line levels; no hardware/software flow control.
+			bool rts_enable_ = false;
 		};
 		struct Endpoint
 		{
@@ -57,8 +68,12 @@ namespace LSY
 		NetworkGenisysMaster& operator=(const NetworkGenisysMaster&) = delete;
 		bool AddProtocol(std::shared_ptr<ProtocolGenisysMaster> & protocol);
 		bool AddSlave(uint8_t slave_id, Endpoint endpoint);
+		bool AddSlave(uint8_t slave_id); // Serial bus registration; no IP endpoint required.
 		bool Start();
-		bool Process(); // Nonblocking; handles up to 64 datagrams per call.
+		bool Process(); // Nonblocking; handles up to 64 datagrams/stream chunks per call.
+		// Service I/O and deadlines while optionally deferring new automatic requests.
+		bool Process(bool allow_automatic_requests);
+		bool IsRunning() const;
 		bool Shutdown();
 		uint16_t GetLocalPort() const;
 		bool RequestRecall(uint8_t slave_id);
@@ -79,6 +94,7 @@ namespace LSY
 			REQUEST request = REQUEST::POLL;
 			bool saw_indications = false;
 			bool retryable = true;
+			bool waiting_write = false;
 			std::vector<uint8_t> wire;
 			Clock::time_point deadline;
 			Clock::time_point next_request;
@@ -89,13 +105,21 @@ namespace LSY
 		void SetStatus(uint8_t slave_id, COMMUNICATIONSTATUS status);
 		bool StartRequest(uint8_t slave_id, REQUEST request, const std::vector<uint8_t>& message);
 		void FailRequest(uint8_t slave_id, TRANSACTIONEVENT reason);
-		bool ProcessTimers();
+		bool ProcessTimers(bool allow_automatic_requests);
 		Config configuration_;
 		std::shared_ptr<ProtocolGenisysMaster> protocol_;
 		std::map<uint8_t, sockaddr_in> endpoints_;
-		SOCKET socket_ = INVALID_SOCKET;
-		bool wsa_started_ = false;
-		uint16_t local_port_ = 0;
+		std::unique_ptr<MasterTransport> transport_;
+		std::vector<uint8_t> serial_frame_;
+		uint8_t last_serial_slave_ = 0;
+		bool IsSerial() const;
+		bool SerialBusy() const;
+		bool AcceptResponse(std::vector<uint8_t>& message);
+		bool ProcessSerialBytes(const std::vector<uint8_t>& bytes);
+		void FailSerialTransport();
+		// Internal test seam: exercise the scheduler/stream handling without a COM driver.
+		friend struct NetworkGenisysMasterTestAccess;
+		NetworkGenisysMaster(Config configuration, std::unique_ptr<MasterTransport> transport);
 		std::vector<ProtocolGenisysMaster::Response> responses_;
 		bool Send(uint8_t slave_id, const std::vector<uint8_t>& message);
 		bool SourceMatches(const std::vector<uint8_t>& message, const sockaddr_in& source) const;

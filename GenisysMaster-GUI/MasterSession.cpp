@@ -13,11 +13,9 @@ namespace
     }
     void ValidateTransport(const LSY::NetworkGenisysMaster::Config& config)
     {
-        ValidateAddress(config.local_ip_);
-        if (!config.poll_interval_ms_ || config.poll_interval_ms_ > 600000 ||
-            !config.response_timeout_ms_ || config.response_timeout_ms_ > 600000 ||
-            !config.recovery_interval_ms_ || config.recovery_interval_ms_ > 600000 || config.retry_count_ > 100)
-            throw std::runtime_error("Intervals must be 1..600000 ms; retries must be 0..100.");
+        ConsoleConfiguration candidate; candidate.network = config;
+        candidate.slaves.push_back(ConsoleSlaveConfiguration{});
+        ValidateConsoleConfiguration(candidate);
     }
 }
 
@@ -49,7 +47,7 @@ MasterSession::Slave* MasterSession::mutableSlave(int id)
     for (auto& item : slaves_) if (item.configuration.id == id) return &item;
     return nullptr;
 }
-uint16_t MasterSession::localPort() const { return network_ ? network_->GetLocalPort() : configuration_.network.receive_port_; }
+uint16_t MasterSession::localPort() const { return serial() ? 0 : network_ ? network_->GetLocalPort() : configuration_.network.receive_port_; }
 void MasterSession::log(int id, const QString& text, const QString& category, int severity)
 {
     emit eventAdded(id, text, category, severity);
@@ -62,9 +60,12 @@ void MasterSession::applyConfiguration(const ConsoleConfiguration& config)
     std::vector<Slave> replacement;
     for (const auto& item : config.slaves)
     {
-        if (!item.id || !item.endpoint.port_ || !item.frame_bytes || item.frame_bytes > 224 || !ids.insert(item.id).second)
+        if (!item.id || !item.frame_bytes || item.frame_bytes > 224 || !ids.insert(item.id).second)
             throw std::runtime_error("Slave IDs must be unique (1..255), ports 1..65535, and frames 1..224 bytes.");
-        ValidateAddress(item.endpoint.ip_address_);
+        if (item.has_endpoint) {
+            if (!item.endpoint.port_) throw std::runtime_error("Slave UDP port must be 1..65535.");
+            ValidateAddress(item.endpoint.ip_address_);
+        }
         Slave state;
         state.configuration = item;
         state.indications = std::make_shared<LSY::MasterDataFrame>("Indications " + std::to_string(item.id), item.frame_bytes);
@@ -75,6 +76,7 @@ void MasterSession::applyConfiguration(const ConsoleConfiguration& config)
         for (auto& bits : state.changedAt) bits.fill(-10000);
         replacement.push_back(std::move(state));
     }
+    lastError_.clear();
     configuration_ = config;
     slaves_ = std::move(replacement);
     emit configurationChanged();
@@ -84,6 +86,7 @@ void MasterSession::setTransportConfiguration(const LSY::NetworkGenisysMaster::C
 {
     if (running()) throw std::runtime_error("Stop communications before changing transport settings.");
     ValidateTransport(config);
+    lastError_.clear();
     configuration_.network = config;
     emit changed();
 }
@@ -91,15 +94,16 @@ void MasterSession::start()
 {
     if (running()) return;
     if (slaves_.empty()) throw std::runtime_error("Add at least one slave before starting.");
-    ValidateTransport(configuration_.network);
+    ValidateConsoleConfiguration(configuration_);
+    lastError_.clear();
     auto protocol = std::make_shared<LSY::ProtocolGenisysMaster>();
-    auto network = std::make_unique<LSY::NetworkGenisysMaster>(configuration_.network);
+    auto network = networkFactory_ ? networkFactory_(configuration_.network) : std::make_unique<LSY::NetworkGenisysMaster>(configuration_.network);
     if (!network->AddProtocol(protocol)) throw std::runtime_error("Cannot attach master protocol.");
     for (auto& state : slaves_)
     {
         const auto id = state.configuration.id;
         if (!protocol->AddDataFrame(id, false, state.indications) || !protocol->AddDataFrame(id, true, state.controls.frame) ||
-            !network->AddSlave(id, state.configuration.endpoint)) throw std::runtime_error("Cannot register slave configuration.");
+            !(serial() ? network->AddSlave(id) : network->AddSlave(id, state.configuration.endpoint))) throw std::runtime_error("Cannot register slave configuration.");
         std::function<void(std::string, LSY::MasterDataFrame::CALLBACKEVENT)> callback =
             [this, id](std::string, LSY::MasterDataFrame::CALLBACKEVENT event)
             {
@@ -127,12 +131,19 @@ void MasterSession::start()
             log(id, online ? "Online" : "Offline - cached indications are stale", "Status", online ? 0 : 1);
         };
     network->AddStatusCallback(callback);
-    if (!network->Start()) throw std::runtime_error("Cannot bind UDP socket. Check the local IP/port and whether another application is using it.");
+    if (!network->Start())
+    {
+        lastError_ = serial() ? "Cannot open serial port. Check the COM name, line settings and whether another application is using it." :
+            "Cannot bind UDP socket. Check the local IP/port and whether another application is using it.";
+        emit changed(); throw std::runtime_error(lastError_.toStdString());
+    }
+    std::vector<uint8_t> ids; for (const auto& state : slaves_) ids.push_back(state.configuration.id);
+    recalls_ = std::make_unique<ConsoleRecalls>(ids, serial());
     protocol_ = std::move(protocol);
     network_ = std::move(network);
     for (auto& state : slaves_) state.status = {};
     processTimer_.start();
-    log(0, QString("UDP started on %1:%2").arg(QString::fromStdString(configuration_.network.local_ip_)).arg(localPort()), "Status");
+    log(0, QString::fromStdString(ConsoleTransportDescription(configuration_.network, localPort())) + " started", "Status");
     emit changed();
 }
 void MasterSession::stop()
@@ -140,7 +151,7 @@ void MasterSession::stop()
     if (!network_) return;
     processTimer_.stop();
     network_->Shutdown();
-    network_.reset(); protocol_.reset();
+    network_.reset(); protocol_.reset(); recalls_.reset(); lastError_.clear();
     for (auto& state : slaves_)
     {
         state.controls.OnStopped();
@@ -148,13 +159,16 @@ void MasterSession::stop()
         state.status.indications_current = false;
         state.status.communication = LSY::NetworkGenisysMaster::COMMUNICATIONSTATUS::UNKNOWN;
     }
-    log(0, "UDP stopped; cached indications are stale", "Status");
+    log(0, serial() ? "Serial stopped; cached indications are stale" : "UDP stopped; cached indications are stale", "Status");
     emit changed();
 }
 void MasterSession::process()
 {
     if (!network_) return;
-    network_->Process(); // Library logging reports rejected datagrams/socket errors.
+    network_->Process(!recalls_->Pending()); // Explicit recalls take priority over new scheduled polls.
+    if (network_->IsRunning())
+        for (const auto& request : recalls_->Process(*network_))
+            log(request.id, request.sent ? "Recall sent" : "Recall send failed", "Status", request.sent ? 0 : 1);
     for (const auto& response : network_->GetResponses())
     {
         if (auto* state = mutableSlave(response.slave_id))
@@ -176,15 +190,24 @@ void MasterSession::process()
         else if (event.type == Event::SEND_FAILED) log(event.slave_id, "Request send failed", "Status", 2);
     }
     for (auto& state : slaves_) network_->GetSlaveStatus(state.configuration.id, state.status);
+    if (!network_->IsRunning())
+    {
+        // Consume control response/transaction events above before retiring I/O.
+        processTimer_.stop();
+        for (auto& state : slaves_) state.controls.OnStopped();
+        network_->Shutdown(); network_.reset(); protocol_.reset(); recalls_.reset();
+        lastError_ = "Serial connection lost. Check the port and press Start to reconnect.";
+        log(0, lastError_, "Status", 2); emit changed(); return;
+    }
     emit changed();
 }
 bool MasterSession::recall(int id)
 {
-    if (!network_ || !network_->RequestRecall(static_cast<uint8_t>(id)))
+    if (!network_ || !recalls_->Queue(static_cast<uint8_t>(id)))
     {
-        log(id, "Recall not sent: stopped, unknown slave, or busy", "Status", 1); return false;
+        log(id, "Recall not queued: stopped or unknown slave", "Status", 1); return false;
     }
-    log(id, "Recall sent", "Status");
+    log(id, "Recall queued", "Status");
     return true;
 }
 void MasterSession::recallAll() { for (const auto& state : slaves_) recall(state.configuration.id); }
@@ -208,10 +231,29 @@ void MasterSession::stageMode(int id, bool include, int value)
 bool MasterSession::sendControl(int id, bool full)
 {
     auto* state = mutableSlave(id);
-    if (!state || !network_ || !state->controls.Send(*network_, static_cast<uint8_t>(id), full))
+    if (!state || !network_ || busyForControl(id) || !state->controls.Send(*network_, static_cast<uint8_t>(id), full))
     {
         log(id, "Control NOT sent: stopped, busy, no changes/mode, or send failed", "Controls", 1); return false;
     }
     log(id, full ? "Full control frame explicitly sent" : "Changed controls explicitly sent", "Controls");
     emit changed(); return true;
+}
+
+QString MasterSession::destination(int id) const
+{
+    const auto* state = slave(id);
+    if (!state) return {};
+    if (!serial() && !state->configuration.has_endpoint) return "Set UDP endpoint";
+    return QString::fromStdString(ConsoleSlaveDestination(configuration_.network, state->configuration.endpoint));
+}
+bool MasterSession::busyForControl(int id) const
+{
+    const auto* state = slave(id);
+    if (!running() || !state || state->status.busy) return true;
+    if (serial())
+    {
+        if (recalls_ && recalls_->Pending()) return true;
+        for (const auto& item : slaves_) if (item.status.busy) return true;
+    }
+    return false;
 }

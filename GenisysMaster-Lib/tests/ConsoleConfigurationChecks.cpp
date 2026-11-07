@@ -3,6 +3,7 @@
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
+#include <functional>
 
 void Check(bool ok, const char* text) { if (!ok) throw std::runtime_error(text); }
 struct File
@@ -68,6 +69,48 @@ int main()
 		}
 		LoadConsoleConfiguration("../GenisysMaster-Console/GenisysMaster.example.xml", settings);
 		Check(settings.slaves.size() == 1 && settings.slaves[0].id == 34 && !settings.plain, "Commented example is loadable with the simulator defaults");
+		LoadConsoleConfiguration("../GenisysMaster-Console/GenisysMaster.serial.example.xml", settings);
+		using Type = LSY::NetworkGenisysMaster::Config::CONNECTIONTYPE;
+		Check(settings.network.connection_type_ == Type::SERIAL && settings.network.com_port_ == "COM10" &&
+			settings.network.baud_rate_ == 9600 && settings.network.data_bits_ == 8 && settings.network.parity_ == 'N' &&
+			settings.network.write_timeout_ms_ == 2000 && !settings.slaves[0].has_endpoint, "Serial example loads ID-only slaves and line settings");
+		const auto rejected = [&](const std::function<void()>& action) {
+			bool failed = false; try { action(); } catch (const std::exception&) { failed = true; }
+			Check(failed, "Invalid serial XML or CLI must be rejected before opening a transport");
+		};
+		for (const std::string& section : std::vector<std::string>{
+			"<Serial port='NUL'/>", "<Serial port='COM0'/>", "<Serial baud-rate='0'/>", "<Serial parity='X'/>",
+			"<Serial data-bits='7'/>", "<Serial stop-bits='3'/>", "<Serial write-timeout-ms='0'/>", "<Serial dtr='yes'/>", "<Serial/><Serial/>"})
+		{
+			file.Write("<GenisysMaster version='1' transport='serial'>" + section + "<Slaves><Slave id='3' frame-bytes='8'/></Slaves></GenisysMaster>");
+			rejected([&] { LoadConsoleConfiguration(file.path, settings); });
+			Check(settings.network.com_port_ == "COM10" && settings.slaves[0].id == 34, "Failed serial load preserves previous settings");
+		}
+		file.Write("<GenisysMaster version='1' transport='serial'><Serial port='COM11' baud-rate='19200' parity='e' stop-bits='2' dtr='true' rts='true'/>"
+			"<Slaves><Slave id='3' frame-bytes='8'/><Slave id='4' frame-bytes='16'/></Slaves></GenisysMaster>");
+		LoadConsoleConfiguration(file.path, settings);
+		Check(settings.network.parity_ == 'E' && settings.network.stop_bits_ == 2 && settings.network.dtr_enable_ && settings.network.rts_enable_, "Serial optional line settings");
+		auto args = ParseConsoleArguments({"--baud", "38400", "--config", file.path, "--com-port", "COM12", "--serial-slave", "0x22", "32", "--serial-slave", "35", "64", "--plain"});
+		Check(args.settings.network.connection_type_ == Type::SERIAL && args.settings.network.baud_rate_ == 38400 && args.settings.network.com_port_ == "COM12" &&
+			args.settings.slaves.size() == 2 && args.settings.slaves[0].id == 34 && args.settings.slaves[0].frame_bytes == 32 && args.settings.plain,
+			"CLI scalar precedence is independent of config argument order; serial slaves replace XML list");
+		args = ParseConsoleArguments({"--transport", "serial", "--com-port", "\\\\.\\COM10", "--baud", "115200", "--parity", "o", "--data-bits", "8", "--stop-bits", "2", "--dtr", "true", "--rts", "false", "--write-timeout-ms", "3000", "--recall-all"});
+		Check(args.settings.network.parity_ == 'O' && args.settings.network.stop_bits_ == 2 && args.settings.network.dtr_enable_ && !args.settings.network.rts_enable_ &&
+			args.settings.recall_all && !args.settings.network.automatic_polling_ && args.settings.slaves[0].id == 34, "All serial CLI options and default slave");
+		Check(ConsoleTransportDescription(args.settings.network, 0).find("115200 8O2") != std::string::npos &&
+			ConsoleSlaveDestination(args.settings.network, {}).find("127.0.0.1") == std::string::npos, "Serial banner and slave rows do not show fictitious UDP endpoints");
+		args = ParseConsoleArguments({"--config", file.path, "--transport", "udp", "--slave", "9", "127.0.0.1", "7169", "8", "--local-port", "0"});
+		Check(args.settings.network.connection_type_ == Type::UDP && args.settings.slaves[0].id == 9 && args.settings.network.receive_port_ == 0, "Explicit UDP override with endpoint replacement");
+		Check(ParseConsoleArguments({}).settings.network.connection_type_ == Type::UDP, "CLI defaults stay UDP");
+		Check(ParseConsoleArguments({"--config", "missing.xml", "--help"}).help, "Help does not open XML or a serial port");
+		for (const auto& bad : std::vector<std::vector<std::string>>{
+			{"--transport", "tcp"}, {"--com-port", "NUL"}, {"--baud", "0"}, {"--parity", "even"}, {"--parity", "X"}, {"--data-bits", "7"},
+			{"--stop-bits", "3"}, {"--write-timeout-ms", "0"}, {"--dtr", "yes"}, {"--serial-slave", "3", "8"},
+			{"--transport", "serial", "--serial-slave", "3"}, {"--config", file.path, "--transport", "udp"},
+			{"--config", file.path, "--config", file.path}, {"--recall-all", "--run-ms", "100"}, {"--unknown"},
+			{"--slave", "3", "bad-ip", "7169", "8"}, {"--slave", "3", "127.0.0.1", "7169", "8", "--slave", "3", "127.0.0.1", "7169", "8"}})
+			rejected([&] { ParseConsoleArguments(bad); });
+		std::cout << "PASS: serial XML/CLI, line validation, scalar/list precedence, help and transport-aware display\n";
 		std::cout << "PASS: XML defaults, all settings, shared endpoints and commented example\n"
 			"PASS: malformed/unknown/duplicate/invalid settings rejected without partial application\n"
 			"All ConsoleConfiguration checks passed.\n";

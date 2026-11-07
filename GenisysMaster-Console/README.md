@@ -1,6 +1,6 @@
 # GenisysMaster-Console
 
-UDP master test harness with polling, recalls, and explicit control sending. Build GenisysSlave.sln, select this project as
+UDP/serial master test harness with polling, recalls, and explicit control sending. Build GenisysSlave.sln, select this project as
 the startup project, and run without debugging (Ctrl+F5), or launch the executable
 from a terminal. For Debug x64 the executable is:
 
@@ -19,21 +19,23 @@ From the executable's directory:
 GenisysMaster-Console.exe --config GenisysMaster.example.xml
 ```
 
-The build copies the fully commented GenisysMaster.example.xml beside the
+The build copies the fully commented GenisysMaster.example.xml and
+GenisysMaster.serial.example.xml beside the
 executable. Copy it to a personal name such as my-test.xml before editing; future
 builds refresh the example. Alternatively, pass any absolute or relative XML path,
 quoting paths containing spaces. Relative paths use the process working directory,
 not the executable's directory. In Visual Studio, set the Debugging command
 arguments to `--config "$(ProjectDir)GenisysMaster.example.xml"`.
 
-The XML contains a versioned GenisysMaster root, optional Udp/Polling/Console
+The XML contains a versioned GenisysMaster root with an optional transport attribute
+(udp by default, or serial), optional Udp/Serial/Polling/Console
 sections, and a required nonempty Slaves section. It configures local binding,
 poll interval/secure mode, response timeout/retries/recovery, plain/dashboard
 output, bounded runs, and slave endpoint/frame sizes. The active example matches
 slave 34 on localhost; commented entries show more IDs and another device.
 
 XML is loaded first, regardless of the position of --config. Explicit CLI scalar
-flags then override its settings. Any --slave entries replace the ENTIRE XML
+flags then override its settings. Any --slave or --serial-slave entries replace the ENTIRE XML
 slave list instead of appending to it. For example:
 
 ```bat
@@ -44,16 +46,96 @@ GenisysMaster-Console.exe --config my-test.xml --slave 34 127.0.0.1 7169 125
 Use --config only once. With no config flag, existing defaults and CLI behaviour
 are unchanged. Missing or malformed files, unsupported versions, unknown or
 duplicate settings, missing required slave attributes, invalid IPs/ranges,
-and duplicate slave IDs produce an error and exit code 1 before opening a socket.
+invalid serial settings, and duplicate slave IDs produce an error and exit code 1
+before opening a socket or COM port.
 Names are case-sensitive, boolean values are true/false, and numbers accept
 strict decimal or 0x hex. Optional sections/attributes retain documented defaults.
 No control values are loaded or sent by the configuration file.
 
 Parsing lives in ConsoleConfiguration.cpp and uses the pinned, MIT-licensed
-pugixml 1.16 sources in third_party/pugixml. It is compiled into the console only;
+pugixml 1.16 sources in third_party/pugixml. It is shared by the console and Qt GUI;
 GenisysMaster-Lib has no XML dependency. Library users continue to configure the
 transport through its Config/Endpoint structs.
 
+## Serial transport
+
+Select serial explicitly; UDP remains the default. For one slave:
+
+```bat
+GenisysMaster-Console.exe --transport serial --com-port COM10 --baud 9600 --serial-slave 34 125
+```
+
+For several IDs on the same bus, repeat the ID/frame-size option:
+
+```bat
+GenisysMaster-Console.exe --transport serial --com-port COM10 --baud 19200 --parity E --stop-bits 1 --serial-slave 34 125 --serial-slave 35 125
+```
+
+Or copy/edit the commented serial XML example:
+
+```bat
+GenisysMaster-Console.exe --config GenisysMaster.serial.example.xml
+```
+
+It uses a root of `<GenisysMaster version="1" transport="serial">`, a Serial
+section and ID-only slaves:
+
+```xml
+<Serial port="COM10" baud-rate="9600" data-bits="8" parity="N" stop-bits="1"
+        write-timeout-ms="2000" dtr="false" rts="false" />
+<Slaves>
+  <Slave id="34" frame-bytes="125" />
+  <Slave id="35" frame-bytes="125" />
+</Slaves>
+```
+
+Serial defaults: COM1, 9600 8N1, write timeout 1000 ms, DTR/RTS off. Eight data
+bits are required. Parity accepts N/E/O (case-insensitive); stop bits are 1 or 2.
+Additional CLI options: --data-bits 8, --write-timeout-ms 2000, --dtr true|false,
+and --rts true|false. COM10+ and the Windows device form are supported. Ports are
+opened exclusively. DTR/RTS select fixed levels; flow control and manual RS-485
+RTS direction switching are not implemented. Use an auto-direction RS-485 adapter.
+
+Select the transport with --transport; COM/baud options alone do not select it.
+The existing --slave id IPv4 port frame-bytes syntax also works in serial mode,
+but its endpoint is ignored. --serial-slave requires serial transport. Serial
+XML slaves omit both ip and port; if supplied, they must form a valid pair.
+Switching such a file to UDP requires CLI --slave entries with real endpoints.
+CLI overrides apply after loading a valid XML file, irrespective of argument order.
+The Qt GUI supports the same serial XML format and loads it while stopped.
+
+The dashboard header shows COM port, baud, framing and DTR/RTS. Slave rows show
+the shared COM port rather than an IP endpoint; plain output reports the same
+transport details. Polling, indication display/callbacks, editing, optional mode
+and explicit control sends work as for UDP. A fatal port I/O error exits with
+code 1 and a reconnect message; fix the port and restart the console.
+
+One complete exchange uses the serial wire at a time. Manual recalls (R, A,
+r <id>, r all and --recall-all) are queued and deduplicated while pending. They
+wait for the active exchange to finish, then run before new automatic polls.
+Existing exchanges, response deadlines and retries keep progressing. Polling
+resumes after queued recalls have been issued; controls are never queued and
+are refused immediately if the shared bus is busy. Editing still stays local.
+For a quiet control test, start with --manual, recall the slave, then send when idle.
+
+For a one-shot serial check of all configured IDs:
+
+```bat
+GenisysMaster-Console.exe --config GenisysMaster.serial.example.xml --plain --recall-all --wait-ms 15000
+```
+
+Choose the overall wait limit for all IDs, including silent devices/retries.
+Set --timeout-ms for the slave turnaround plus a full reply at the selected baud,
+and --write-timeout-ms for the largest outgoing frame. The standard 500 ms
+response timeout may be too short for a large reply on a slow line; the serial
+example uses 1000 ms response and 2000 ms write timeouts. Automatic FC control
+retransmission remains disabled for both transports.
+
+To test using GenisysSlave-Simulator, connect two physical COM ports with an
+appropriate null-modem cable or create a virtual null-modem pair yourself. Run
+the simulator in Serial mode on one end and this console on the other, with
+matching line settings, slave ID and frame size. For example, simulator COM11
+and master COM10. No virtual port driver is bundled or installed automatically.
 ## Dashboard (default)
 
 The slave table stays in place as status and counters update. The selected slave
@@ -91,8 +173,7 @@ continues. Resizing restores the normal layout automatically.
 
 Navigation/send shortcuts take effect immediately, without Enter. Byte/mode
 edit prompts use Enter to stage the value or Esc to cancel. Help and navigation
-do not pause polling. Busy slaves can refuse a recall until their active exchange
-finishes. The dashboard uses a separate Windows console screen buffer and restores
+do not pause polling. Recalls wait in the explicit recall queue until the active exchange finishes. The dashboard uses a separate Windows console screen buffer and restores
 the original buffer and input settings on normal exit or a handled Ctrl+C.
 
 ## Plain-text mode
@@ -138,11 +219,11 @@ Plain-text interactive commands (with --plain):
 - `sendall <id>`: send every control byte, including zeros.
 - `status`: show communication status and counters for every configured ID.
 - `help`: list the plain-text commands.
-- `q`: exit and release the socket.
+- `q`: exit and release the transport.
 
 Numbers accept decimal or a 0x prefix. This is a keyboard console; use a real
 terminal for interactive mode. Use --recall-all or --run-ms for noninteractive runs.
-A manual recall may be refused while that ID has an exchange in progress.
+Manual recalls are queued while the relevant ID or serial bus is busy.
 
 ## Configure endpoints
 
@@ -172,8 +253,8 @@ originate from the configured remote IP and port.
 GenisysMaster-Console.exe --plain --local-port 7170 --slave 34 127.0.0.1 7169 125 --recall-all --wait-ms 3000
 ```
 
-This disables automatic polling, sends one recall per slave (with configured
-timeout/retries), processes responses and acknowledgements, and
+This disables automatic polling and queues one recall per slave (with configured
+timeout/retries), processes responses and acknowledgements (sequentially on serial), and
 exits with code 0 after all exchanges reach F1. It exits with code 1 if setup or
 sending fails, or if the wait expires. The default wait is 3000 milliseconds.
 The console's one-shot deadline is only a test-run limit, not library retry or
@@ -285,3 +366,16 @@ The sixth executable, ConsoleConfigurationChecks, validates the XML example,
 optional defaults, all settings, decimal/hex values, shared endpoints, malformed
 files, unknown/duplicate settings and invalid ranges. Failed loads leave the
 previous configuration unchanged.
+
+ConsoleConfigurationChecks also validates serial XML/CLI settings, both examples,
+CLI scalar/list precedence, defaults, missing endpoints and invalid line settings.
+SerialGenisysMasterChecks verifies the console recall queue on a simulated shared
+serial bus, including priority over automatic polls without interrupting active
+transactions. ConsoleAppChecks builds/runs the actual console in hidden child
+processes to check help, serial startup diagnostics, XML/CLI transport overrides,
+one-shot multi-ID recalls and bounded polling against real UDP peers.
+
+All eight default checks run without physical devices. Actual native serial I/O
+still needs connected COM ports; the optional SerialGenisysMasterChecks COM10 COM11
+check is documented in the master library README. Driver/hardware validation is
+reported as skipped when no ports are supplied.

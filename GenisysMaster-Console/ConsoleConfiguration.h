@@ -6,6 +6,7 @@ struct ConsoleSlaveConfiguration
 	uint8_t id = 34;
 	LSY::NetworkGenisysMaster::Endpoint endpoint;
 	unsigned frame_bytes = 125;
+	bool has_endpoint = true; // False for serial-only ID/frame-size entries.
 };
 
 struct ConsoleConfiguration
@@ -22,3 +23,16 @@ struct ConsoleConfiguration
 // Throws an actionable error for malformed XML, unknown settings or bad values.
 void LoadConsoleConfiguration(const std::string& path, ConsoleConfiguration& configuration);
 void LoadConsoleConfiguration(const std::wstring& path, ConsoleConfiguration& configuration);
+
+struct ConsoleArguments
+{
+	ConsoleConfiguration settings;
+	std::string config_path;
+	bool help = false;
+};
+// Arguments exclude argv[0]. XML loads first; CLI scalar/list overrides follow.
+ConsoleArguments ParseConsoleArguments(const std::vector<std::string>& arguments);
+void ValidateConsoleConfiguration(const ConsoleConfiguration& configuration);
+std::string ConsoleTransportDescription(const LSY::NetworkGenisysMaster::Config& config, uint16_t local_port);
+std::string ConsoleSlaveDestination(const LSY::NetworkGenisysMaster::Config& config,
+	const LSY::NetworkGenisysMaster::Endpoint& endpoint);

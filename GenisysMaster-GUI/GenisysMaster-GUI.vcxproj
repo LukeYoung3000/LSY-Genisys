@@ -21,6 +21,8 @@
     <ClInclude Include="TableModels.h" />
     <ClCompile Include="$(IntDir)generated\moc_MainWindow.cpp" />
     <None Include="README.md" />
+    <None Include="GenisysMaster.example.xml" />
+    <None Include="GenisysMaster.serial.example.xml" />
     <CustomBuild Include="MainWindow.ui">
       <Command>if not exist "$(IntDir)generated" mkdir "$(IntDir)generated"
 "$(QtSdkRoot)\bin\uic.exe" "%(FullPath)" -o "$(IntDir)generated\ui_MainWindow.h"</Command>
@@ -148,6 +150,9 @@
     <ProjectReference Include="..\GenisysSlave-Lib\GenisysSlave-Lib.vcxproj"><Project>{ff6e29f9-c320-4fc4-b61b-7a3b3111c8f8}</Project></ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Target Name="CopyExampleConfiguration" AfterTargets="Build">
+    <Copy SourceFiles="$(ProjectDir)GenisysMaster.example.xml;$(ProjectDir)GenisysMaster.serial.example.xml" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
+  </Target>
   <Target Name="ValidateQtSdk" BeforeTargets="PrepareForBuild">
     <Error Condition="!Exists('$(QtSdkRoot)\bin\uic.exe')" Text="Qt SDK missing. Run GenisysMaster-GUI/scripts/SetupQt.ps1 or set QtSdkRoot / QT_ROOT to an MSVC x64 Qt 6.11.3 SDK." />
   </Target>

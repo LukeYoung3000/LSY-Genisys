@@ -29,6 +29,8 @@
     <ClCompile Include="src\MasterDataFrame.cpp" />
     <ClCompile Include="src\GenisysMaster-Lib-Logging.cpp" />
     <ClCompile Include="src\NetworkGenisysMaster.cpp" />
+    <ClCompile Include="src\MasterTransport.cpp" />
+    <ClInclude Include="src\MasterTransport.h" />
     <ClCompile Include="src\ProtocolGenisysMaster.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

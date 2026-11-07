@@ -1,10 +1,10 @@
 # GenisysMaster-Lib
 
-Master UDP library with polling, retries, communication status, recovery, and explicit controls.
+Master UDP/serial library with polling, retries, communication status, recovery, and explicit controls.
 
-The master supports UDP using a caller-driven, nonblocking processing loop.
+The master supports UDP and Windows COM ports using a caller-driven, nonblocking processing loop.
 GenisysMaster-Console is included in the solution for polling and manual recalls.
-TCP and serial are not implemented by the master transport. The console includes a control editor and explicit send commands; see its README
+TCP is not implemented. The console and Qt GUI both support serial configuration and XML. The console includes a control editor and explicit send commands; see its README
 for usage.
 
 The static library uses the existing LSY namespace and include/src layout:
@@ -12,7 +12,7 @@ The static library uses the existing LSY namespace and include/src layout:
 - MasterDataFrame: bit/byte API, incoming indication callbacks, and outgoing
   control snapshots awaiting explicit acknowledgement.
 - ProtocolGenisysMaster: master request builders and buffered slave-response parser.
-- NetworkGenisysMaster: one bound UDP socket, a protocol object, and slave-ID endpoint mappings.
+- NetworkGenisysMaster: one UDP socket or serial port, a protocol object, and registered slave IDs. Private MasterTransport backends handle Windows I/O.
 - MasterLogging: independent logging callbacks, following the slave API style.
 
 MasterDataFrame and MasterLogging have distinct names so master and slave
@@ -152,7 +152,7 @@ Independent peers must not interleave partial messages into the same instance;
 the optional IP argument is currently unused and does not authenticate or route
 responses. Genisys has no transaction sequence number, so the caller must route
 responses from the expected endpoint and avoid overlapping exchanges. The protocol
-class itself has no timers; the UDP transport manages deadlines and retries. CancelRequest
+class itself has no timers; the network layer manages deadlines and retries for both transports. CancelRequest
 can explicitly abandon a request without acknowledging pending control data;
 it cannot establish whether a device applied a control. The caller supplies mode values; control check-back/execute, common control,
 and date/time messages remain unsupported. Startup control-database restoration
@@ -214,6 +214,85 @@ must not reenter processing, shut down the transport, or mutate the protocol/fra
 registrations. ProcessDatagram is the protocol's self-contained UDP parsing entry
 point; ProcessMessages remains available for ordered stream checks.
 
+## Serial transport
+
+The protocol and MasterDataFrame APIs and implementations are unchanged. Select
+serial in NetworkGenisysMaster::Config, attach the same protocol/frames, register
+IDs without IP endpoints, and use the same Start, Process, RequestRecall,
+RequestPoll, RequestControl, status, transaction and indication callback APIs.
+UDP remains the default for existing callers.
+
+```cpp
+LSY::NetworkGenisysMaster::Config config;
+config.connection_type_ = LSY::NetworkGenisysMaster::Config::CONNECTIONTYPE::SERIAL;
+config.com_port_ = "COM10"; // Also accepts the Windows device form "\\\\.\\COM10".
+config.baud_rate_ = 9600;
+config.parity_ = 'N';
+config.stop_bits_ = 1;
+config.response_timeout_ms_ = 1000;
+config.write_timeout_ms_ = 2000;
+LSY::NetworkGenisysMaster network(config);
+network.AddProtocol(protocol); // Protocol already has indication/control frames.
+network.AddSlave(3);
+network.AddSlave(4); // Another address on the same serial wire.
+if (network.Start()) {
+    network.RequestRecall(3);
+    // Call network.Process() regularly, just as for UDP.
+}
+```
+
+The two-argument AddSlave(id, endpoint) also works in serial mode; the endpoint
+is ignored. The ID-only overload is serial-only. GetLocalPort returns zero for
+serial. Local IP and receive-port settings are unused. Configuration/registration
+cannot change while the port is open. A failed Start leaves the port closed and
+can be retried. Rebuild static-library consumers after updating the library.
+
+Serial defaults are COM1, 9600 baud, 8 data bits, no parity, one stop bit, and a
+1000 ms write timeout. Parity accepts N/E/O, case-insensitively; stop bits accept
+1 or 2. Eight data bits are required to preserve Genisys headers and escaping.
+The port is opened exclusively, including COM10 and higher. Hardware/software
+flow control is disabled. dtr_enable_ and rts_enable_ optionally assert fixed
+line levels (both default false); they do not implement flow control or RS-485
+transmit-direction switching. Use an adapter with automatic direction control
+for RS-485. Set the line parameters to match the device.
+
+Only one complete exchange can own a serial bus at a time, including F2/FA/F1
+and retries. Automatic requests use round-robin order among due IDs. An offline
+ID consumes its configured timeout/retry budget, then gives other IDs a turn.
+Manual requests return false if *any* ID is busy; they are not silently queued.
+UDP retains its independent per-ID concurrency. A true serial request result
+means its asynchronous write was accepted, not that it completed or was applied.
+
+Serial reads can contain fragments or multiple frames. The network layer buffers
+up to 1024 bytes per frame and passes complete frames to the existing parser.
+It rejects noise, bad CRCs and replies for an ID that does not own the exchange.
+Partial input is discarded when abandoning or starting an exchange. No parser or
+frame changes are needed, and UDP datagrams retain their original isolation.
+
+Writes use overlapped I/O and retain their buffers until completion; partial
+writes continue the same frame. Process polls I/O without waiting. Response
+phase deadlines start after the write completes and the driver's output queue
+is drained. write_timeout_ms_ bounds a write plus driver drain; choose it for the
+largest frame at your baud rate. response_timeout_ms_ must allow the slave's
+turnaround and complete reply transmission. Controls are still sent once;
+only poll/recall requests and FA acknowledgements may be retried.
+
+A port/line/write failure closes the port, ends an active transaction with
+SEND_FAILED, and marks every registered ID offline with stale cached data. It
+does not acknowledge an unanswered control. A response timeout instead releases
+the bus and allows the usual recovery recalls. Reconnect a failed port explicitly
+with Shutdown/Start. Shutdown cancels pending I/O and waits for Windows to retire
+it before releasing buffers/handles; processing and callbacks stay on the caller's
+thread. No transport thread or external serial library is required.
+
+Genisys has no transaction sequence number, so a delayed response for a new
+exchange with the same ID remains indistinguishable at the protocol level.
+Serial byte-stream checks run without hardware; native driver/wiring validation
+requires two connected COM ports (see below). The console supports both transports through CLI/XML; the Qt GUI also supports serial selection and line settings.
+
+Win32 references: [serial resource handles](https://learn.microsoft.com/en-us/windows/win32/devio/communications-resource-handles),
+[communication timeouts](https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-commtimeouts),
+and [overlapped cancellation/lifetime](https://learn.microsoft.com/en-us/windows/win32/api/ioapiset/nf-ioapiset-cancelioex).
 ## Polling, timeouts and status
 
 Config defaults (all intervals are milliseconds):
@@ -280,7 +359,7 @@ are scheduled. Once a request times out, a new manual request can be made.
 Do not directly cancel or build protocol requests while its transport is running;
 the transport owns the matching timer state.
 
-## Run the data-frame, protocol, UDP and polling checks
+## Run the data-frame, protocol, UDP, polling and serial checks
 
 Open an **x64 Native Tools Command Prompt for Visual Studio**, then run from
 the solution directory:
@@ -289,8 +368,8 @@ the solution directory:
 GenisysMaster-Lib\tests\RunChecks.cmd
 ```
 
-This builds the Debug x64 master library, compiles six standalone console
-executables, and runs all six. The UDP checks also build GenisysSlave-Lib. A failure returns a nonzero exit code. Build products
+This builds the Debug x64 master library, compiles eight standalone console
+executables, and runs all eight. The UDP checks also build GenisysSlave-Lib. A failure returns a nonzero exit code. Build products
 stay under builds/x64/Debug/checks. MasterDataFrameChecks covers bit/byte access,
 control snapshots, callbacks, modes, and payload validation.
 ProtocolGenisysMasterChecks compares requests and replies against the GE
@@ -312,4 +391,32 @@ and explicit sends after a timeout using the newest edits.
 ConsoleConfigurationChecks covers the console XML loader, defaults, example,
 and validation. pugixml is compiled into that check and the console only; the
 master library does not depend on it.
-No external devices or running simulator are needed.
+SerialGenisysMasterChecks uses a private injected byte-stream backend with the
+existing slave protocol to exercise fragmentation, escaped IDs, serialized/fair
+polling, delayed writes, noise/CRC recovery, stale data, control retry rules,
+port failures and restart. It also checks native COM setting validation and
+unavailable-port cleanup. The private test seam is not an application transport API.
+
+The default run needs no external devices or running simulator. To additionally
+exercise real overlapped Windows COM I/O, connect two ports with a null-modem cable
+or configure a virtual null-modem pair, close other applications using them, then
+run from the solution directory (example port names):
+
+```bat
+GenisysMaster-Lib\builds\x64\Debug\checks\SerialGenisysMasterChecks.exe COM10 COM11
+```
+
+This explicitly opens the supplied ports at 9600 8N1, verifies exclusive access,
+byte-fragmented replies, escaped IDs/data, controls and pending-I/O shutdown/reopen.
+No driver is installed or port guessed. It returns nonzero if pairing/I/O fails.
+Without port arguments this native loopback test is reported as SKIP, not PASS.
+
+The Process(bool allow_automatic_requests) overload can defer new automatic
+polls/recalls for a call while still progressing active I/O, deadlines and retries.
+Process() retains its original behavior. The console uses this to prioritize its
+explicit recall queue without racing automatic serial polling. IsRunning reports
+whether the socket/COM backend remains open, including after a fatal serial error.
+
+ConsoleAppChecks builds and launches the console to verify serial diagnostics,
+CLI/XML transport precedence, multi-ID UDP recalls and bounded polling. See the
+console README for serial CLI flags and the commented serial XML example.

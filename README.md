@@ -26,16 +26,17 @@ Should be used for rudimentary testing purposes only.
 ## Genisys Master (Development)
 
 **GenisysMaster-Lib** is a separate Windows C++ master library for testing slave
-implementations over UDP. It supports multiple slave IDs on one socket, polling,
+implementations over UDP or serial. It supports multiple slave IDs, polling,
 recalls, indication callbacks, explicit controls, retries, and communication status.
+Both the console and Qt GUI support UDP and serial.
 See [library usage](GenisysMaster-Lib/README.md).
 
-**GenisysMaster-Console** provides a fixed dashboard with indication/control views,
+**GenisysMaster-Console** supports UDP and serial through CLI/XML, and provides a fixed dashboard with indication/control views,
 local control editing, explicit sending, and an event log. Use `--plain` for scrolling
 text. See [console setup and controls](GenisysMaster-Console/README.md).
 
 **GenisysMaster-GUI** is a Qt Widgets desktop application using the same master
-library. It supports XML load/save, slave editing, shared-endpoint UDP polling,
+library. It supports XML load/save, slave editing, UDP/serial polling,
 live indications, explicit control drafts/sends, and a filterable event log.
 See [GUI setup, checks and packaging](GenisysMaster-GUI/README.md).
 
