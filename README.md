@@ -23,6 +23,17 @@ Genisys slave device without having a physical device.
 The source code dose minimal error checking/handling and was NOT written to any safety standard.
 Should be used for rudimentary testing purposes only.
 
+## Genisys Master (Development)
+
+**GenisysMaster-Lib** is a separate Windows C++ master library for testing slave
+implementations over UDP. It supports multiple slave IDs on one socket, polling,
+recalls, indication callbacks, explicit controls, retries, and communication status.
+See [library usage](GenisysMaster-Lib/README.md).
+
+**GenisysMaster-Console** provides a fixed dashboard with indication/control views,
+local control editing, explicit sending, and an event log. Use `--plain` for scrolling
+text. See [console setup and controls](GenisysMaster-Console/README.md).
+
 ## Usage (For Users)
 
 Download the latest version of "GenisysSlave-Simulator" from the **Releases** page.

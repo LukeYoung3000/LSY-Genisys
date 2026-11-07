@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Example configuration for GenisysMaster-Console (see README for commands).
+     Paths are relative to the current working directory. Quote paths with spaces.
+     XML names are case-sensitive. Unknown settings are rejected to catch typos.
+     Command-line scalar flags override XML, regardless of their argument order.
+     Command-line slave entries REPLACE the complete XML slave list.
+     This file never sends controls automatically; control drafts start at zero. -->
+<GenisysMaster version="1">
+  <!-- Optional sections retain application defaults when omitted.
+       One IPv4 UDP socket sends requests and receives all configured slaves.
+       receive-port: 0..65535; zero asks Windows to choose a port.
+       Fixed-response-port slaves must target this receive port. -->
+  <Udp local-ip="0.0.0.0" receive-port="7170" />
+
+  <!-- enabled=false selects manual requests; timeouts/retries still apply.
+       secure=true sends CRC-bearing polls. Booleans must be true or false.
+       All intervals: 1..600000 milliseconds. Retries: 0..100 EXTRA attempts.
+       Retries apply to polls, recalls and FA acknowledgements, NEVER FC controls.
+       Offline slaves receive a full recall after the recovery interval. -->
+  <Polling enabled="true" secure="true" interval-ms="500"
+           response-timeout-ms="500" retries="2" recovery-interval-ms="1000" />
+
+  <!-- plain=false uses the dashboard (redirected I/O still uses plain text).
+       recall-all=true performs one recall exchange per slave, then exits.
+       wait-ms: 1..600000; overall deadline for recall-all.
+       run-ms: 0 disables the run limit; 1..600000 runs polling for that duration.
+       Do not combine recall-all=true and run-ms greater than zero. -->
+  <Console plain="false" recall-all="false" wait-ms="3000" run-ms="0" />
+
+  <!-- Required: at least one slave. IDs must be unique (1..255).
+       ip: numeric IPv4 address; port: 1..65535, also the expected response source.
+       frame-bytes: 1..224, used for separate indication and control frames.
+       Numbers accept decimal (including leading zeros) or a 0x hex prefix.
+       This active entry matches the default local slave simulator setup. -->
+  <Slaves>
+    <Slave id="34" ip="127.0.0.1" port="7169" frame-bytes="125" />
+
+    <!-- Uncomment/add entries for your own setup. These two IDs share a device.
+         A second device can have a different IP and/or port on the same socket.
+    <Slave id="35" ip="127.0.0.1" port="7169" frame-bytes="125" />
+    <Slave id="0x24" ip="192.168.1.50" port="7170" frame-bytes="32" />
+    -->
+  </Slaves>
+</GenisysMaster>
