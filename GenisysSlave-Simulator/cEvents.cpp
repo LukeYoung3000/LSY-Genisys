@@ -346,8 +346,7 @@ bool cEvents::StartupGenisysNetwork()
 
 	// Protocol Setup
 	protocol_ = std::make_shared<ProtocolGenisysSlave>();
-	if (!protocol_->AddDataFrame(genisys_slave_id_, false, data_frame_1_) || \
-		!protocol_->AddDataFrame(genisys_slave_id_, true, data_frame_2_) )
+	if (!protocol_->AddDataFrame(genisys_slave_id_, data_frame_1_, data_frame_2_))
 	{
 		// Error: Data Frame Issue
 		wxLogMessage("cEvents::StartupGenisysNetwork: Protocol Setup Error");
@@ -513,11 +512,16 @@ void cEvents::RunningloopGenisysNetwork()
 
 
 
+		// Get Slave Metrics From "ProtocolGenisysSlave"
+		LSY::ProtocolGenisysSlave::SlaveData slave_data;
+		protocol_->GetSlaveData(genisys_slave_id_, slave_data);
+
 		// Update Last Master IP & Responce Counter On GUI
 		// Note: I'm Using The Values From The Indication Data Frame.
 		// The Control & Indication Will Have The Exact Same Values Anyway.
-		std::string last_master_ip = data_frame_1_->GetLastMasterIp();
-		std::string responce_cnt = std::to_string(data_frame_1_->GetResponceCounter());
+		std::string last_master_ip = slave_data.last_master_device_to_poll_name;
+		std::string responce_cnt = std::to_string(slave_data.responce_counter);
+
 		wxGetApp().CallAfter([this, last_master_ip, responce_cnt]()
 			{
 

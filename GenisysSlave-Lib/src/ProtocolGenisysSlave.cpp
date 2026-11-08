@@ -86,6 +86,17 @@ namespace LSY
 		return true;
 	}
 
+	bool ProtocolGenisysSlave::GetSlaveData(uint8_t slave_id, SlaveData& out_slave_data)
+	{
+		if (slave_data.count(slave_id) == 0)
+		{
+			return false;
+		}
+
+		out_slave_data = slave_data[slave_id];
+		return true;
+	}
+
 	bool ProtocolGenisysSlave::ProcessMessages(std::vector<uint8_t> & data_buffer, std::string master_device)
 	{
 

@@ -13,7 +13,9 @@ namespace LSY
 
 	class ProtocolGenisysSlave
 	{
-	private:
+
+
+	public:
 
 		struct SlaveData
 		{
@@ -30,11 +32,15 @@ namespace LSY
 			uint8_t last_mode_byte_recived;						// Last mode byte received from master device.
 		};
 
+
+
+	private:
 		std::map<uint8_t, SlaveData> slave_data;				// Key = SlaveID, Value = SlaveData
 		std::vector<std::vector<uint8_t>> input_messages;
 
 	public: // User API
 		bool AddDataFrame(uint8_t slave_id, std::shared_ptr<DataFrame>& ind_data_frame_obj, std::shared_ptr<DataFrame>& ctl_data_frame_obj);
+		bool GetSlaveData(uint8_t slave_id, SlaveData& out_slave_data);
 
 	public: // Interface To Transport/Network Layers
 		bool ProcessMessages(std::vector<uint8_t> & data_buffer, std::string master_device = "");
