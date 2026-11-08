@@ -48,6 +48,7 @@ public:
 	std::atomic<int> byte_offset_;
 	std::atomic<int> bit_offset_;
 	std::atomic<bool> bit_value_;
+	std::atomic<int> mode_byte_write_request_{ -1 };
 
 	// Logging
 	wxLogWindow* logger;
@@ -68,6 +69,7 @@ public:
 	void TopLevelWindowCloseEvent(wxCloseEvent& event) override;
 	void ProtocolSelectionEvent(wxCommandEvent& event) override;
 	void StartStopServerEvent(wxCommandEvent& event) override;
+	void ApplyModeByteEvent(wxCommandEvent& event) override;
 	void GridClickEvent(wxGridEvent& event) override;
 	void MenuHelpAboutOnMenuSelection(wxCommandEvent& event) override;
 	void MenuHelpLogOnMenuSelection(wxCommandEvent& event) override;
@@ -75,6 +77,7 @@ public:
 
 	// Network
 	bool StartupGenisysNetwork();
+	bool GetModeByteReturnValue(uint8_t& value);
 	void ShutdownGenisysNetwork();
 	void RunningloopGenisysNetwork();
 	void EventCallbackGenisysNetwork(std::string table_name, LSY::DataFrame::CALLBACKEVENT event_type);

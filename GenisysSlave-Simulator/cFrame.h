@@ -12,6 +12,7 @@
 #include <wx/textctrl.h>
 #include <wx/combobox.h>
 #include <wx/tglbtn.h>
+#include <wx/button.h>
 #include <wx/bitmap.h>
 #include <wx/image.h>
 #include <wx/icon.h>
@@ -50,6 +51,9 @@ class cFrame : public wxFrame
 		wxStaticText* m_staticText101;
 		wxStaticText* m_staticText102;
 		wxStaticText* m_staticTextLastMasterIp;
+		wxStaticText* m_staticTextLastModeByte;
+		wxTextCtrl* m_textModeByteReturn;
+		wxButton* m_buttonApplyModeByte;
 		wxStaticText* m_staticText1022;
 		wxStaticText* m_staticTextResponceCounter;
 		wxStaticText* m_staticText11;
@@ -74,6 +78,7 @@ class cFrame : public wxFrame
 		virtual void TopLevelWindowCloseEvent( wxCloseEvent& event ) { event.Skip(); }
 		virtual void ProtocolSelectionEvent( wxCommandEvent& event ) { event.Skip(); }
 		virtual void StartStopServerEvent( wxCommandEvent& event ) { event.Skip(); }
+		virtual void ApplyModeByteEvent( wxCommandEvent& event ) { event.Skip(); }
 		virtual void GridClickEvent( wxGridEvent& event ) { event.Skip(); }
 		virtual void MenuHelpLogOnMenuSelection( wxCommandEvent& event ) { event.Skip(); }
 		virtual void MenuHelpAboutOnMenuSelection( wxCommandEvent& event ) { event.Skip(); }

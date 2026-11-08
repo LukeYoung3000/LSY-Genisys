@@ -30,7 +30,8 @@ namespace LSY
 			std::string last_master_device_to_poll_name;		// IP address of the last master device that sent a poll message to this slave, example: "127.0.0.1".
 			uint64_t recevied_counter;							// Number of messages received from master devices.
 			uint64_t responce_counter;							// Number of responce messages sent from this slave to master.
-			uint8_t last_mode_byte_recived;						// Last mode byte received from master device.
+			uint8_t last_mode_byte_recived = 0;					// Last mode byte received from master device.
+			bool has_received_mode_byte = false;
 		};
 
 
@@ -54,7 +55,11 @@ namespace LSY
 		bool CalculateCRC(const std::vector<uint8_t> & gen_msg_buffer, uint8_t *crc_low, uint8_t *crc_high);
 		bool RemoveEscapeChars(std::vector<uint8_t> & gen_msg_buffer);
 		void AddEscapeChars(std::vector<uint8_t> & gen_msg_buffer);
+
+
+		std::string GetMessageHexString(const std::vector<uint8_t>& gen_msg_buffer);
 		void LogGenisysMsg(const std::vector<uint8_t> & gen_msg_buffer);
+		void LogGenisysMsg(std::string master_ip, uint8_t slave_id, bool is_recv, uint8_t message_type, bool is_mode_byte, uint8_t mode_byte, const std::vector<uint8_t> & raw_data, std::string additional_notes);
 
 	};
 

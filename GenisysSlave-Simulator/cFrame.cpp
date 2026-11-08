@@ -144,6 +144,20 @@ cFrame::cFrame( wxWindow* parent, wxWindowID id, const wxString& title, const wx
 	m_staticTextLastMasterIp->Wrap( -1 );
 	bSizer7->Add( m_staticTextLastMasterIp, 0, wxALL, 5 );
 
+	wxBoxSizer* modeReceivedSizer = new wxBoxSizer( wxHORIZONTAL );
+	modeReceivedSizer->Add( new wxStaticText( m_panel1, wxID_ANY, wxT("Last Mode Byte:"), wxDefaultPosition, wxDefaultSize, 0 ), 0, wxALIGN_CENTER_VERTICAL|wxRIGHT, 5 );
+	m_staticTextLastModeByte = new wxStaticText( m_panel1, wxID_ANY, wxT("--"), wxDefaultPosition, wxDefaultSize, 0 );
+	modeReceivedSizer->Add( m_staticTextLastModeByte, 0, wxALIGN_CENTER_VERTICAL, 0 );
+	bSizer7->Add( modeReceivedSizer, 0, wxALL, 5 );
+
+	bSizer7->Add( new wxStaticText( m_panel1, wxID_ANY, wxT("Mode Byte Return (hex):"), wxDefaultPosition, wxDefaultSize, 0 ), 0, wxALL, 5 );
+	wxBoxSizer* modeReturnSizer = new wxBoxSizer( wxHORIZONTAL );
+	m_textModeByteReturn = new wxTextCtrl( m_panel1, wxID_ANY, wxT("0x04"), wxDefaultPosition, wxSize( 65, -1 ), 0 );
+	modeReturnSizer->Add( m_textModeByteReturn, 0, wxRIGHT, 5 );
+	m_buttonApplyModeByte = new wxButton( m_panel1, wxID_ANY, wxT("Apply"), wxDefaultPosition, wxDefaultSize, 0 );
+	modeReturnSizer->Add( m_buttonApplyModeByte, 0, 0, 0 );
+	bSizer7->Add( modeReturnSizer, 0, wxALL, 5 );
+
 	m_staticText1022 = new wxStaticText( m_panel1, wxID_ANY, wxT("Responce Counter:"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticText1022->Wrap( -1 );
 	bSizer7->Add( m_staticText1022, 0, wxALL, 5 );
@@ -565,6 +579,7 @@ cFrame::cFrame( wxWindow* parent, wxWindowID id, const wxString& title, const wx
 	this->Connect( wxEVT_CLOSE_WINDOW, wxCloseEventHandler( cFrame::TopLevelWindowCloseEvent ) );
 	m_radioBox1->Connect( wxEVT_COMMAND_RADIOBOX_SELECTED, wxCommandEventHandler( cFrame::ProtocolSelectionEvent ), NULL, this );
 	m_toggleStartStop->Connect( wxEVT_COMMAND_TOGGLEBUTTON_CLICKED, wxCommandEventHandler( cFrame::StartStopServerEvent ), NULL, this );
+	m_buttonApplyModeByte->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( cFrame::ApplyModeByteEvent ), NULL, this );
 	m_grid3->Connect( wxEVT_GRID_CELL_LEFT_CLICK, wxGridEventHandler( cFrame::GridClickEvent ), NULL, this );
 	MenuHelp->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( cFrame::MenuHelpLogOnMenuSelection ), this, MenuHelpLog->GetId());
 	MenuHelp->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( cFrame::MenuHelpAboutOnMenuSelection ), this, MenuHelpAbout->GetId());
@@ -609,6 +624,7 @@ cFrame::~cFrame()
 	this->Disconnect( wxEVT_CLOSE_WINDOW, wxCloseEventHandler( cFrame::TopLevelWindowCloseEvent ) );
 	m_radioBox1->Disconnect( wxEVT_COMMAND_RADIOBOX_SELECTED, wxCommandEventHandler( cFrame::ProtocolSelectionEvent ), NULL, this );
 	m_toggleStartStop->Disconnect( wxEVT_COMMAND_TOGGLEBUTTON_CLICKED, wxCommandEventHandler( cFrame::StartStopServerEvent ), NULL, this );
+	m_buttonApplyModeByte->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( cFrame::ApplyModeByteEvent ), NULL, this );
 	m_grid3->Disconnect( wxEVT_GRID_CELL_LEFT_CLICK, wxGridEventHandler( cFrame::GridClickEvent ), NULL, this );
 
 }

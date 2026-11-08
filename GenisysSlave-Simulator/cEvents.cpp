@@ -110,6 +110,27 @@ void cEvents::ProtocolSelectionEvent(wxCommandEvent& event)
 	event.Skip();
 }
 
+bool cEvents::GetModeByteReturnValue(uint8_t& value)
+{
+	unsigned long parsed_value = 0;
+	if (!m_textModeByteReturn->GetValue().ToULong(&parsed_value, 16) || parsed_value > 0xFF)
+	{
+		wxMessageBox("Enter a hexadecimal mode byte from 00 to FF.", "Invalid Mode Byte", wxOK | wxICON_ERROR, this);
+		return false;
+	}
+
+	value = static_cast<uint8_t>(parsed_value);
+	m_textModeByteReturn->ChangeValue(wxString::Format("0x%02X", static_cast<unsigned int>(value)));
+	return true;
+}
+
+void cEvents::ApplyModeByteEvent(wxCommandEvent& event)
+{
+	uint8_t value = 0;
+	if (GetModeByteReturnValue(value) && network_thread_.joinable())
+		mode_byte_write_request_ = value;
+}
+
 void cEvents::StartStopServerEvent(wxCommandEvent& event)
 {
 
@@ -259,6 +280,10 @@ bool cEvents::StartupGenisysNetwork()
 		return false;
 	}
 
+	uint8_t mode_byte_return_value = 0;
+	if (!GetModeByteReturnValue(mode_byte_return_value))
+		return false;
+
 
 	// Radio button "1" is "TCP"
 	// Note: We could use "m_radioBox1->GetString()" to confirm the choice strings. 
@@ -353,6 +378,8 @@ bool cEvents::StartupGenisysNetwork()
 		ShutdownGenisysNetwork();
 		return false;
 	}
+	protocol_->SetModeByteReturnValue(genisys_slave_id_, mode_byte_return_value);
+	m_staticTextLastModeByte->SetLabel("--");
 
 	// Network/Serial Configuration
 	NetworkGenisysSlave::Config network_config_;
@@ -445,6 +472,8 @@ void cEvents::ShutdownGenisysNetwork()
 	byte_offset_ = -1;
 	bit_offset_ = -1;
 	bit_value_ = false;
+	mode_byte_write_request_ = -1;
+	m_staticTextLastModeByte->SetLabel("--");
 
 }
 
@@ -466,6 +495,10 @@ void cEvents::RunningloopGenisysNetwork()
 		{
 			return;
 		}
+
+		int mode_byte_value = mode_byte_write_request_.exchange(-1);
+		if (mode_byte_value >= 0)
+			protocol_->SetModeByteReturnValue(genisys_slave_id_, static_cast<uint8_t>(mode_byte_value));
 
 
 		// Check If GUI Has Updated A Bit Value In The Indication Table
@@ -521,12 +554,16 @@ void cEvents::RunningloopGenisysNetwork()
 		// The Control & Indication Will Have The Exact Same Values Anyway.
 		std::string last_master_ip = slave_data.last_master_device_to_poll_name;
 		std::string responce_cnt = std::to_string(slave_data.responce_counter);
+		wxString last_mode_byte = slave_data.has_received_mode_byte
+			? wxString::Format("0x%02X", static_cast<unsigned int>(slave_data.last_mode_byte_recived))
+			: wxString("--");
 
-		wxGetApp().CallAfter([this, last_master_ip, responce_cnt]()
+		wxGetApp().CallAfter([this, last_master_ip, responce_cnt, last_mode_byte]()
 			{
 
 				m_staticTextLastMasterIp->SetLabel(last_master_ip);
 				m_staticTextResponceCounter->SetLabel(responce_cnt);
+				m_staticTextLastModeByte->SetLabel(last_mode_byte);
 
 			});
 
