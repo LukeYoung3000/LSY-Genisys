@@ -32,11 +32,6 @@
 #define GEN_MAX_BYTES (uint8_t)223
 #define GEN_MODE_BYTE (uint8_t)0xE0
 
-// Note: The mode byte return is normally based on internal settings
-// withen the slave device. This is a temp hard coded value to use before the settings
-// feature is implemented.
-#define GEN_MODE_BYTE_RETURN_VALUE (uint8_t)0x04
-
 
 namespace LSY
 {
@@ -96,6 +91,21 @@ namespace LSY
 		out_slave_data = slave_data[slave_id];
 		return true;
 	}
+
+	bool ProtocolGenisysSlave::SetModeByteReturnValue(uint8_t slave_id, uint8_t mode_byte_value)
+	{
+		if (slave_data.count(slave_id) == 0)
+		{
+			return false;
+		}
+
+		slave_data[slave_id].mode_byte_return_value = mode_byte_value;
+		return true;
+	}
+
+
+
+
 
 	bool ProtocolGenisysSlave::ProcessMessages(std::vector<uint8_t> & data_buffer, std::string master_device)
 	{
@@ -312,7 +322,7 @@ namespace LSY
 
 			// Mode Byte (From Example)
 			gen_msg_responce.push_back(GEN_MODE_BYTE);
-			gen_msg_responce.push_back(GEN_MODE_BYTE_RETURN_VALUE);
+			gen_msg_responce.push_back(slave_data[slave_address_from_master].mode_byte_return_value);
 
 			// Calculate CRC
 			uint8_t crc_low = 0;
@@ -442,7 +452,7 @@ namespace LSY
 			gen_msg_responce.push_back(GEN_MSG_TYPE_IND_RESP);
 			gen_msg_responce.push_back(slave_address_from_master);
 			gen_msg_responce.push_back(GEN_MODE_BYTE);
-			gen_msg_responce.push_back(GEN_MODE_BYTE_RETURN_VALUE);
+			gen_msg_responce.push_back(slave_data[slave_address_from_master].mode_byte_return_value);
 
 			// Calculate CRC
 			uint8_t crc_low = 0;
