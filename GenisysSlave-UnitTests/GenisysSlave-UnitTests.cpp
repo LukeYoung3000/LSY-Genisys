@@ -59,6 +59,36 @@ bool ModeByteTests()
 	return true;
 }
 
+bool ProtocolLoggingTests()
+{
+	auto indications = std::make_shared<DataFrame>("Indications", 1);
+	auto controls = std::make_shared<DataFrame>("Controls", 1);
+	ProtocolGenisysSlave protocol;
+	if (!protocol.AddDataFrame(1, indications, controls))
+		return false;
+
+	std::vector<std::string> info_messages;
+	std::vector<std::string> protocol_messages;
+	Logging::AddLogInfoFunc([&info_messages](std::string message) { info_messages.push_back(message); return true; });
+
+	auto process_message = [&protocol]()
+		{
+			std::vector<uint8_t> message = { 0xFC, 0x01, 0xE0, 0x00, 0x00, 0x00, 0xF6 };
+			return protocol.ProcessMessages(message, "master");
+		};
+
+	bool passed = process_message() && !info_messages.empty();
+	info_messages.clear();
+	Logging::AddLogProtoFunc([&protocol_messages](std::string message) { protocol_messages.push_back(message); return true; });
+	passed = process_message() && passed && !protocol_messages.empty() && info_messages.empty();
+	passed = passed && protocol_messages[0].find(",master,1,RECV,") != std::string::npos;
+
+	Logging::AddLogProtoFunc([](const std::string&) { return false; });
+	passed = process_message() && passed && !info_messages.empty();
+	Logging::AddLogInfoFunc(LogInfo);
+	return passed;
+}
+
 
 int main(int argc, char* argv[])
 {
@@ -68,6 +98,13 @@ int main(int argc, char* argv[])
 	Logging::AddLogInfoFunc(LogInfo);
 	Logging::AddLogWarningFunc(LogWarning);
 	Logging::AddLogErrorFunc(LogError);
+
+	if (argc > 1 && std::string(argv[1]) == "--protocol-logging-tests")
+	{
+		bool passed = ProtocolLoggingTests();
+		std::cout << (passed ? "Protocol logging tests passed" : "Protocol logging tests failed") << std::endl;
+		return passed ? 0 : 1;
+	}
 
 	if (argc > 1 && std::string(argv[1]) == "--mode-byte-tests")
 	{

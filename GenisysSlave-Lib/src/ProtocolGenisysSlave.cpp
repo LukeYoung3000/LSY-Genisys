@@ -299,10 +299,11 @@ namespace LSY
 				gen_msg_responce.push_back((uint8_t)crc_low);
 				gen_msg_responce.push_back((uint8_t)crc_high);
 
-				// Log Responce Message
-				LogGenisysMsg(master_device, slave_address_from_master, false, responce_msg_type, false, 0, gen_msg_responce,"Log Misses F6 Termination - Will Be Fixed");
-
 			}
+
+			// Log Responce Message
+			LogGenisysMsg(master_device, slave_address_from_master, false, responce_msg_type, false, 0, gen_msg_responce, "Log Misses F6 Termination - Will Be Fixed");
+
 		}
 
 
@@ -732,9 +733,8 @@ namespace LSY
 		std::stringstream ss;
 		ss << std::chrono::system_clock::to_time_t(time_now) << "," << master_ip << "," << (int)slave_id << "," << (is_recv ? "RECV" : "RESP") << "," << message_type_name << "," << (is_mode_byte ? std::to_string(mode_byte) : "NO_MODE") << "," << hex_data << "," << additional_notes;
 
-		// To Do: Add A Protocol Logging Option For This Log Message
-		// Logging::LogProtocol(ss.str());
-		Logging::LogInfo(ss.str());
+		if (!Logging::LogProto(ss.str()))
+			Logging::LogInfo(ss.str());
 	}
 
 

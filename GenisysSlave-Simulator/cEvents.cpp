@@ -6,6 +6,8 @@
 // wxWidgets
 #include <wx/msgdlg.h>
 #include <wx/app.h>
+#include <wx/filename.h>
+#include <wx/stdpaths.h>
 
 // GenisysSlave-Lib
 #include "GenisysSlave-Lib-Version.h"
@@ -19,8 +21,6 @@
 // Namespaces
 using namespace std::chrono_literals;
 using namespace LSY;
-
-
 
 cEvents::cEvents() : cFrame(nullptr)
 {
@@ -50,17 +50,36 @@ cEvents::cEvents() : cFrame(nullptr)
 
 	// Setup Logging
 	logger = new wxLogWindow(this, "Log", false, false);
+	protocol_logger = new wxLogWindow(this, "Protocol Log", false, false);
+	protocol_logger->DetachOldLog();
+	for (wxWindowList::compatibility_iterator node = protocol_logger->GetFrame()->GetChildren().GetFirst(); node; node = node->GetNext())
+	{
+		wxTextCtrl* log_text = wxDynamicCast(node->GetData(), wxTextCtrl);
+		if (log_text)
+			log_text->SetFont(wxFont(wxFontInfo(log_text->GetFont().GetPointSize()).Family(wxFONTFAMILY_TELETYPE)));
+	}
 	wxLog::SetActiveTarget(logger);
 	wxLogNull no_log;
+	wxString protocol_log_path = wxFileName(wxStandardPaths::Get().GetExecutablePath()).GetPathWithSep() + "Protocol Log.txt";
+	if (!protocol_log_file_.Open(protocol_log_path, "ab"))
+		wxMessageBox("Unable to open the protocol log file:\n" + protocol_log_path, "Protocol Log", wxOK | wxICON_ERROR, this);
 	
 	// Add Logging Functions To "GenisysSlave-Lib"
 	Logging::AddLogDebugFunc(LogDebug);
 	Logging::AddLogInfoFunc(LogInfo);
 	Logging::AddLogWarningFunc(LogWarning);
 	Logging::AddLogErrorFunc(LogError);
+	Logging::AddLogProtoFunc([this](const std::string& log_msg) { return LogProto(log_msg); });
 
 	// Connect Idle Event
 	//this->Bind(wxEVT_IDLE, &cEvents::IdleEvent, this);
+}
+
+cEvents::~cEvents()
+{
+	ShutdownGenisysNetwork();
+	Logging::AddLogProtoFunc([](const std::string&) { return false; });
+	delete protocol_logger;
 }
 
 void cEvents::TopLevelWindowCloseEvent(wxCloseEvent& event)
@@ -249,6 +268,12 @@ void cEvents::MenuHelpLogOnMenuSelection(wxCommandEvent& event)
 {
 	// Show the log window
 	logger->Show();
+	event.Skip();
+}
+
+void cEvents::MenuHelpProtocolLogOnMenuSelection(wxCommandEvent& event)
+{
+	protocol_logger->Show();
 	event.Skip();
 }
 
@@ -696,5 +721,28 @@ bool LogError(const std::string& log_msg)
 	ss << ",ERROR," << log_msg << std::endl;
 
 	wxLogMessage(wxString(ss.str()));
+	return true;
+}
+
+bool cEvents::LogProto(const std::string& log_msg)
+{
+	bool write_failed = false;
+	{
+		std::lock_guard<std::mutex> lock(protocol_log_mutex_);
+		if (protocol_log_file_.IsOpened() &&
+			(protocol_log_file_.Write(log_msg.data(), log_msg.size()) != log_msg.size() ||
+				protocol_log_file_.Write("\r\n", 2) != 2 || !protocol_log_file_.Flush()))
+		{
+			protocol_log_file_.Close();
+			write_failed = true;
+		}
+	}
+	if (write_failed)
+		wxLogError("Unable to write the protocol log file.");
+
+	CallAfter([this, log_msg]()
+		{
+			protocol_logger->LogTextAtLevel(wxLOG_Message, wxString(log_msg));
+		});
 	return true;
 }

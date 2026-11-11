@@ -81,6 +81,7 @@ class cFrame : public wxFrame
 		virtual void ApplyModeByteEvent( wxCommandEvent& event ) { event.Skip(); }
 		virtual void GridClickEvent( wxGridEvent& event ) { event.Skip(); }
 		virtual void MenuHelpLogOnMenuSelection( wxCommandEvent& event ) { event.Skip(); }
+		virtual void MenuHelpProtocolLogOnMenuSelection( wxCommandEvent& event ) { event.Skip(); }
 		virtual void MenuHelpAboutOnMenuSelection( wxCommandEvent& event ) { event.Skip(); }
 
 

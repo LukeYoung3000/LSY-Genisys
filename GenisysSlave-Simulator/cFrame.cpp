@@ -548,6 +548,10 @@ cFrame::cFrame( wxWindow* parent, wxWindowID id, const wxString& title, const wx
 	MenuHelpLog = new wxMenuItem( MenuHelp, wxID_ANY, wxString( wxT("Log") ) , wxEmptyString, wxITEM_NORMAL );
 	MenuHelp->Append( MenuHelpLog );
 
+	wxMenuItem* MenuHelpProtocolLog;
+	MenuHelpProtocolLog = new wxMenuItem( MenuHelp, wxID_ANY, wxString( wxT("Protocol Log") ) , wxEmptyString, wxITEM_NORMAL );
+	MenuHelp->Append( MenuHelpProtocolLog );
+
 	wxMenuItem* MenuHelpAbout;
 	MenuHelpAbout = new wxMenuItem( MenuHelp, wxID_ANY, wxString( wxT("About\n") ) , wxEmptyString, wxITEM_NORMAL );
 	MenuHelp->Append( MenuHelpAbout );
@@ -582,6 +586,7 @@ cFrame::cFrame( wxWindow* parent, wxWindowID id, const wxString& title, const wx
 	m_buttonApplyModeByte->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( cFrame::ApplyModeByteEvent ), NULL, this );
 	m_grid3->Connect( wxEVT_GRID_CELL_LEFT_CLICK, wxGridEventHandler( cFrame::GridClickEvent ), NULL, this );
 	MenuHelp->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( cFrame::MenuHelpLogOnMenuSelection ), this, MenuHelpLog->GetId());
+	MenuHelp->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( cFrame::MenuHelpProtocolLogOnMenuSelection ), this, MenuHelpProtocolLog->GetId());
 	MenuHelp->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( cFrame::MenuHelpAboutOnMenuSelection ), this, MenuHelpAbout->GetId());
 }
 

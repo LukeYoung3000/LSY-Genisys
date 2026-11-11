@@ -3,10 +3,12 @@
 // STL
 #include <utility>
 #include <atomic>
+#include <mutex>
 #include <thread>
 
 // wxWidgets
 #include <wx/event.h>
+#include <wx/ffile.h>
 #include <wx/log.h>
 
 // Genisys Lib
@@ -22,6 +24,7 @@ bool LogDebug(const std::string& log_msg);
 bool LogInfo(const std::string& log_msg);
 bool LogWarning(const std::string& log_msg);
 bool LogError(const std::string& log_msg);
+bool LogProto(const std::string& log_msg);
 
 
 class cEvents : public cFrame
@@ -52,6 +55,9 @@ public:
 
 	// Logging
 	wxLogWindow* logger;
+	wxLogWindow* protocol_logger;
+	wxFFile protocol_log_file_;
+	std::mutex protocol_log_mutex_;
 
 	// Genisys Network
 	std::atomic<bool> stop_thread_;
@@ -64,6 +70,8 @@ public:
 public:
 
 	cEvents();
+	~cEvents();
+	bool LogProto(const std::string& log_msg);
 
 	// UI Events
 	void TopLevelWindowCloseEvent(wxCloseEvent& event) override;
@@ -73,6 +81,7 @@ public:
 	void GridClickEvent(wxGridEvent& event) override;
 	void MenuHelpAboutOnMenuSelection(wxCommandEvent& event) override;
 	void MenuHelpLogOnMenuSelection(wxCommandEvent& event) override;
+	void MenuHelpProtocolLogOnMenuSelection(wxCommandEvent& event) override;
 	void IdleEvent(wxIdleEvent& event);
 
 	// Network
