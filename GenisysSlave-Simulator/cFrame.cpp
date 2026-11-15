@@ -99,19 +99,36 @@ cFrame::cFrame( wxWindow* parent, wxWindowID id, const wxString& title, const wx
 	addField(serialFields, "Parity", m_comboParity);
 	m_transportFields->Add(serialFields, 0, wxEXPAND);
 	setup->Add(m_transportFields, 0, wxEXPAND | wxBOTTOM, gap);
+	auto* timeoutRow = new wxFlexGridSizer(2, gap / 2, gap);
+	timeoutRow->AddGrowableCol(1);
+	m_textPollTimeout = new wxTextCtrl(sidebar, wxID_ANY, "5000");
+	m_textPollTimeout->SetToolTip("Shared maximum interval between Genisys polls. Enter 0 to disable.");
+	addField(timeoutRow, "Poll timeout (ms)", m_textPollTimeout);
+	setup->Add(timeoutRow, 0, wxEXPAND | wxBOTTOM, gap);
 
-	addHeading("Genisys settings");
+	addHeading("Slaves");
+	m_slaveList = new wxListBox(sidebar, wxID_ANY, wxDefaultPosition, FromDIP(wxSize(215, 84)));
+	setup->Add(m_slaveList, 0, wxEXPAND | wxBOTTOM, gap);
+	auto* slaveActions = new wxBoxSizer(wxHORIZONTAL);
+	m_addSlave = new wxButton(sidebar, wxID_ANY, "Add");
+	m_removeSlave = new wxButton(sidebar, wxID_ANY, "Remove");
+	slaveActions->Add(m_addSlave, 0, wxRIGHT, gap);
+	slaveActions->Add(m_removeSlave);
+	setup->Add(slaveActions, 0, wxBOTTOM, gap);
+
+	addHeading("Selected slave");
 	auto* genisysFields = new wxFlexGridSizer(2, gap / 2, gap);
 	genisysFields->AddGrowableCol(1);
 	m_textSlaveID = new wxTextCtrl(sidebar, wxID_ANY);
 	m_textFrameSize = new wxTextCtrl(sidebar, wxID_ANY);
-	m_textPollTimeout = new wxTextCtrl(sidebar, wxID_ANY, "5000");
-	m_textPollTimeout->SetToolTip("Maximum interval between Genisys polls. Enter 0 to disable.");
+
+
 	addField(genisysFields, "Slave ID", m_textSlaveID);
 	addField(genisysFields, "Frame size (bytes)", m_textFrameSize);
-	addField(genisysFields, "Poll timeout (ms)", m_textPollTimeout);
+
 	setup->Add(genisysFields, 0, wxEXPAND | wxBOTTOM, gap);
-	setup->Add(new wxStaticText(sidebar, wxID_ANY, "0 disables poll tracking"), 0, wxBOTTOM, gap);
+	m_saveSlave = new wxButton(sidebar, wxID_ANY, "Save slave");
+	setup->Add(m_saveSlave, 0, wxBOTTOM, gap);
 
 	addHeading("Response mode byte");
 	auto* modeReturn = new wxBoxSizer(wxHORIZONTAL);

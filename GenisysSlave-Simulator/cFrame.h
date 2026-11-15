@@ -18,6 +18,7 @@
 #include <wx/icon.h>
 #include <wx/sizer.h>
 #include <wx/grid.h>
+#include <wx/listbox.h>
 #include <wx/panel.h>
 #include <wx/menu.h>
 #include <wx/frame.h>
@@ -40,6 +41,10 @@ class cFrame : public wxFrame
 		wxRadioBox* m_radioBox1;
 		wxTextCtrl* m_textUDPrx;
 		wxTextCtrl* m_textUDPtx;
+		wxListBox* m_slaveList;
+		wxButton* m_addSlave;
+		wxButton* m_removeSlave;
+		wxButton* m_saveSlave;
 		wxTextCtrl* m_textSlaveID;
 		wxTextCtrl* m_textFrameSize;
 		wxTextCtrl* m_textPollTimeout;
