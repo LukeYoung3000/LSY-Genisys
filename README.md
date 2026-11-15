@@ -1,7 +1,7 @@
 ﻿
 <!-- PROJECT SCREEN SHOT -->
 ![Product Name Screen Shot][product-screenshot]
-Note: This screenshot is of GenisysSlave-Simulator version 0.3.0.6
+Note: This screenshot is of GenisysSlave-Simulator version 0.5.0.9
 
 ## Genisys Protocol
 
@@ -73,8 +73,8 @@ MIT (see LICENSE.txt)
 C++, Winsock, wxWidgets, Visual Studio 2026, Hercules, SerialTool.
 
 
-## AI
-As of GenisysSlave-Simulator 0.4.0.8 AI tools (Github Copilot) will be used for code generation, any AI code generated will be human reviewed before merging to git main.
+## AI Usage
+As of GenisysSlave-Simulator 0.4.0.8 AI tools (Github Copilot and Open AI Codex) will be used for code generation, any AI code generated will be human reviewed before merging to git main.
 
 
 
