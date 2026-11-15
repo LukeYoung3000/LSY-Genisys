@@ -3,11 +3,15 @@
 // STL
 #include <utility>
 #include <atomic>
+#include <mutex>
 #include <thread>
+#include <vector>
 
 // wxWidgets
 #include <wx/event.h>
+#include <wx/ffile.h>
 #include <wx/log.h>
+#include <wx/timer.h>
 
 // Genisys Lib
 #include "NetworkGenisysSlave.h"
@@ -22,15 +26,50 @@ bool LogDebug(const std::string& log_msg);
 bool LogInfo(const std::string& log_msg);
 bool LogWarning(const std::string& log_msg);
 bool LogError(const std::string& log_msg);
+bool LogProto(const std::string& log_msg);
 
 
 class cEvents : public cFrame
 {
 public:
 
-	// Protocol Configuration
-	int genisys_slave_id_;
-	int genisys_frame_size_;
+	// Configuration is edited on the GUI thread. Each registered slave gets its own frames.
+	struct SlaveConfig
+	{
+		int id;
+		int frameSize;
+		uint8_t responseMode = 0x04;
+	};
+	struct SlaveSnapshot
+	{
+		std::vector<uint8_t> indications;
+		std::vector<uint8_t> controls;
+		std::string master;
+		std::string mode;
+		uint64_t responses = 0;
+		bool connected = false;
+	};
+	struct SlaveEdit
+	{
+		int slaveId;
+		int row;
+		int bit;
+		int mode;
+	};
+	std::vector<SlaveConfig> slaves_{{1, 125}};
+	std::map<int, bool> master_connections_;
+	std::map<int, SlaveSnapshot> snapshots_;
+	std::vector<SlaveEdit> edits_;
+	std::mutex slave_state_mutex_;
+	wxTimer refresh_timer_;
+	bool poll_tracking_enabled_ = true;
+
+	void SelectSlave();
+	void RefreshSlaveView();
+	void UpdateSlaveControls();
+	bool SaveSelectedSlave();
+	void AddSlave();
+	void RemoveSlave();
 
 	// Network Configuration
 	int udp_rx_port_;
@@ -43,40 +82,41 @@ public:
 	int serial_stop_bits_;
 	std::string serial_parity_;
 
-	// Frame Data
-	std::atomic<bool> bit_write_request_;
-	std::atomic<int> byte_offset_;
-	std::atomic<int> bit_offset_;
-	std::atomic<bool> bit_value_;
+
 
 	// Logging
 	wxLogWindow* logger;
+	wxLogWindow* protocol_logger;
+	wxFFile protocol_log_file_;
+	std::mutex protocol_log_mutex_;
 
 	// Genisys Network
 	std::atomic<bool> stop_thread_;
 	std::thread network_thread_;
-	std::shared_ptr<LSY::DataFrame> data_frame_1_;
-	std::shared_ptr<LSY::DataFrame> data_frame_2_;
 	std::shared_ptr<LSY::ProtocolGenisysSlave> protocol_;
 	std::shared_ptr <LSY::NetworkGenisysSlave> network_;
 
 public:
 
 	cEvents();
+	~cEvents();
+	bool LogProto(const std::string& log_msg);
 
 	// UI Events
 	void TopLevelWindowCloseEvent(wxCloseEvent& event) override;
 	void ProtocolSelectionEvent(wxCommandEvent& event) override;
 	void StartStopServerEvent(wxCommandEvent& event) override;
+	void ApplyModeByteEvent(wxCommandEvent& event) override;
 	void GridClickEvent(wxGridEvent& event) override;
 	void MenuHelpAboutOnMenuSelection(wxCommandEvent& event) override;
 	void MenuHelpLogOnMenuSelection(wxCommandEvent& event) override;
+	void MenuHelpProtocolLogOnMenuSelection(wxCommandEvent& event) override;
 	void IdleEvent(wxIdleEvent& event);
 
 	// Network
 	bool StartupGenisysNetwork();
+	bool GetModeByteReturnValue(uint8_t& value);
 	void ShutdownGenisysNetwork();
 	void RunningloopGenisysNetwork();
-	void EventCallbackGenisysNetwork(std::string table_name, LSY::DataFrame::CALLBACKEVENT event_type);
 
 };

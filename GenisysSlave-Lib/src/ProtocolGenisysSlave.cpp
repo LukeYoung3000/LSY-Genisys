@@ -1,5 +1,7 @@
 #include "ProtocolGenisysSlave.h"
 
+#include <chrono>
+#include <sstream>
 
 
 
@@ -32,45 +34,132 @@
 #define GEN_MAX_BYTES (uint8_t)223
 #define GEN_MODE_BYTE (uint8_t)0xE0
 
-// Note: The mode byte return is normally based on internal settings
-// withen the slave device. This is a temp hard coded value to use before the settings
-// feature is implemented.
-#define GEN_MODE_BYTE_RETURN_VALUE (uint8_t)0x04
-
 
 namespace LSY
 {
 
-	bool ProtocolGenisysSlave::AddDataFrame(uint8_t slave_id, bool is_control_frame, std::shared_ptr<DataFrame> & data_frame_obj)
+	bool ProtocolGenisysSlave::AddDataFrame(uint8_t slave_id, std::shared_ptr<DataFrame>& ind_data_frame_obj, std::shared_ptr<DataFrame>& ctl_data_frame_obj)
 	{
-		std::map<uint8_t, std::shared_ptr<DataFrame>> * data_frames = &indication_data_frames;
-		if (is_control_frame)
-			data_frames = &control_data_frames;
 
-
-		if (slave_id == 0 || data_frames->count(slave_id))
+		if (slave_id == 0 || slave_data.count(slave_id))
 		{
-			Logging::LogErrorF("ProtocolGenisysSlave::AddDataFrame: Invalid/Duplicate Slave ID [%d] (Is Control Frame = [%d])", slave_id, is_control_frame);
+			Logging::LogErrorF("ProtocolGenisysSlave::AddDataFrame: Invalid/Duplicate Slave ID [%d]", slave_id);
 			return false;
 		}
 
-		uint64_t table_size = data_frame_obj->GetNumBytes();
+		if(ind_data_frame_obj == nullptr)
+		{
+			// Each SlaveID must have a valid indication data frame object. The control data frame object is optional.
+			Logging::LogErrorF("ProtocolGenisysSlave::AddDataFrame: Indication Data Frame Is Null Slave ID [%d]", slave_id);
+			return false;
+		}
+
+		uint64_t table_size = ind_data_frame_obj->GetNumBytes();
 		if (table_size > GEN_MAX_BYTES)
 		{
-			Logging::LogErrorF("ProtocolGenisysSlave::AddDataFrame: Table Size Is Too Large [%d] Slave ID [%d] (Is Control Frame = [%d])", table_size, slave_id, is_control_frame);
+			Logging::LogErrorF("ProtocolGenisysSlave::AddDataFrame: Table Size Is Too Large [%d] Slave ID [%d]", table_size, slave_id);
 			return false;
 		}
 
-		// To Do - Check that "data_frame_obj" raw pointer is not already used in
-		// "indication_data_frames" or "control_data_frames".
 
-		(*data_frames)[slave_id] = data_frame_obj;
+		// Setup Slave Data Entry and add it to the slave_data map
+		SlaveData slave_data_entry;
+
+		slave_data_entry.slave_id = slave_id;
+		slave_data_entry.indication_data_frame = ind_data_frame_obj;
+		slave_data_entry.control_data_frame = ctl_data_frame_obj;
+
+		if (slave_data_entry.control_data_frame == nullptr)
+			slave_data_entry.is_control_frame = false;
+		else
+			slave_data_entry.is_control_frame = true;
+
+		slave_data_entry.recevied_counter = 0;
+		slave_data_entry.responce_counter = 0;
+
+		slave_data[slave_id] = slave_data_entry;
+
+
 		return true;
 	}
 
-	bool ProtocolGenisysSlave::ProcessMessages(std::vector<uint8_t> & data_buffer, std::string master_ip)
+	bool ProtocolGenisysSlave::GetSlaveData(uint8_t slave_id, SlaveData& out_slave_data)
+	{
+		if (slave_data.count(slave_id) == 0)
+		{
+			return false;
+		}
+
+		out_slave_data = slave_data[slave_id];
+		return true;
+	}
+
+	bool ProtocolGenisysSlave::SetModeByteReturnValue(uint8_t slave_id, uint8_t mode_byte_value)
+	{
+		if (slave_data.count(slave_id) == 0)
+		{
+			return false;
+		}
+
+		slave_data[slave_id].mode_byte_return_value = mode_byte_value;
+		return true;
+	}
+
+
+
+
+
+	bool ProtocolGenisysSlave::AddEventCallback(const EventCallback& func)
+	{
+		// Keep a copy so the caller can release its callback object after registration.
+		callback_ = func;
+		return true;
+	}
+
+	void ProtocolGenisysSlave::SetPollTimeout(uint32_t timeout_ms)
+	{
+		poll_timeout_ = std::chrono::milliseconds(timeout_ms);
+		if (timeout_ms == 0)
+			EndPollSessions();
+	}
+
+	void ProtocolGenisysSlave::DisconnectMaster(SlaveData& slave)
+	{
+		if (!slave.master_connected)
+			return;
+
+		// Clear the state before notifying so each session reports one disconnect.
+		slave.master_connected = false;
+		if (callback_)
+			callback_(slave.slave_id, slave.poll_master, CALLBACKEVENT::MASTER_DISCONNECTED);
+	}
+
+	void ProtocolGenisysSlave::EndPollSessions()
+	{
+		for (auto& entry : slave_data)
+			DisconnectMaster(entry.second);
+	}
+
+	void ProtocolGenisysSlave::CheckPollTimeouts()
+	{
+		if (poll_timeout_ == std::chrono::milliseconds::zero())
+			return;
+
+		// Use one monotonic timestamp for all slave IDs in this pass.
+		const auto now = std::chrono::steady_clock::now();
+		for (auto& entry : slave_data)
+		{
+			auto& slave = entry.second;
+			if (slave.master_connected && now - slave.last_poll >= poll_timeout_)
+				DisconnectMaster(slave);
+		}
+	}
+
+	bool ProtocolGenisysSlave::ProcessMessages(std::vector<uint8_t> & data_buffer, std::string master_device)
 	{
 
+		// Expire sessions before accepting a returning master's poll.
+		CheckPollTimeouts();
 		if (!SeperateMessages(data_buffer))
 		{
 			return false;
@@ -82,7 +171,7 @@ namespace LSY
 		{
 			std::vector<uint8_t> responce_message;
 
-			if (!ProcessMessage(input_messages[i], responce_message, master_ip))
+			if (!ProcessMessage(input_messages[i], responce_message, master_device))
 			{
 				continue;
 			}
@@ -92,9 +181,6 @@ namespace LSY
 
 		return true;
 	}
-
-
-
 
 	bool ProtocolGenisysSlave::SeperateMessages(std::vector<uint8_t> & data_buffer)
 	{
@@ -131,7 +217,7 @@ namespace LSY
 		return true;
 	}
 
-	bool ProtocolGenisysSlave::ProcessMessage(std::vector<uint8_t>& gen_msg_buffer, std::vector<uint8_t>& gen_msg_responce, std::string master_ip)
+	bool ProtocolGenisysSlave::ProcessMessage(std::vector<uint8_t>& gen_msg_buffer, std::vector<uint8_t>& gen_msg_responce, std::string master_device)
 	{
 
 		static int msg_count = 0;
@@ -153,7 +239,6 @@ namespace LSY
 			return false;
 		}
 
-
 		Logging::LogDebugF("ProtocolGenisysSlave::ProcessMessage: From Master (Excluding ESCAPE Chars)");
 		LogGenisysMsg(gen_msg_buffer);
 
@@ -162,14 +247,14 @@ namespace LSY
 
 
 		// Get Genisys Header Byte
-		uint8_t msg_type = gen_msg_buffer[GEN_MSG_TYPE_BYTE];
-		uint8_t slave_address_from_master = gen_msg_buffer[GEN_SLAVE_ADDR_BYTE];
-		uint8_t crc_low = 0;
-		uint8_t crc_high = 0;
+		uint8_t msg_type					= gen_msg_buffer[GEN_MSG_TYPE_BYTE];
+		uint8_t slave_address_from_master	= gen_msg_buffer[GEN_SLAVE_ADDR_BYTE];
+		uint8_t crc_low						= 0;
+		uint8_t crc_high					= 0;
 
 
 		// Check That Slave Address From Master Exists In Stored DataFrames
-		if (!indication_data_frames.count(slave_address_from_master) && !control_data_frames.count(slave_address_from_master))
+		if (!slave_data.count(slave_address_from_master))
 		{
 			// Disregard Message As The Slave ID Doesn't Match
 			// To Do: Check For Broadcast Slave ID 0
@@ -179,15 +264,47 @@ namespace LSY
 		}
 
 
+		const bool track_polls = poll_timeout_ != std::chrono::milliseconds::zero();
+		// Only the standard and secure poll lengths qualify for poll tracking.
+		if (track_polls && msg_type == GEN_MSG_TYPE_POLL &&
+			gen_msg_buffer.size() != 3 && gen_msg_buffer.size() != 5)
+		{
+			return false;
+		}
+
+		// Increment Received Message Counter For This Slave ID
+		slave_data[slave_address_from_master].recevied_counter++;
+
+		// Check If Master Device Has Changed Since Last Poll
+		bool has_master_device_changed = slave_data[slave_address_from_master].last_master_device_to_poll_name != master_device;
+		if (has_master_device_changed)
+		{
+			Logging::LogWarningF("ProtocolGenisysSlave::ProcessMessage: Master Device Has Changed For Slave ID [%d] - [%s] -> [%s]", slave_address_from_master, slave_data[slave_address_from_master].last_master_device_to_poll_name.c_str(), master_device.c_str());
+
+			// Master Device Has Changed Since Last Poll
+			slave_data[slave_address_from_master].last_master_device_to_poll_name = master_device;
+		}
+
+
+
 
 
 		if (msg_type == GEN_MSG_TYPE_POLL)
 		{
-			crc_low = gen_msg_buffer[2];
-			crc_high = gen_msg_buffer[3];
 
-			// To Do: Check That CRC From Master Is Correct
-			// Also Take Non-Secure Polls Into Account
+			// Poll Message Should Be 5 Bytes Long For Secure Polls
+			bool is_secure_poll = (gen_msg_buffer.size() == 5);
+
+			if (is_secure_poll)
+			{
+				crc_low = gen_msg_buffer[2];
+				crc_high = gen_msg_buffer[3];
+
+				// To Do: Check That CRC From Master Is Correct
+			}
+			
+			// Log Recived Message
+			LogGenisysMsg(master_device, slave_address_from_master, true, msg_type, false, 0, gen_msg_buffer, (is_secure_poll ? "SECURE_POLL" : "POLL"));
 
 
 
@@ -195,7 +312,12 @@ namespace LSY
 			// Check For Table Updates
 			std::vector<uint64_t> byte_offsets;
 			std::vector<uint8_t> values;
-			if (!indication_data_frames[slave_address_from_master]->GetUpdates(byte_offsets, values))
+			auto& slave = slave_data[slave_address_from_master];
+			const bool poll_master_changed = track_polls && slave.poll_master != master_device;
+			const bool new_poll_session = track_polls && (!slave.master_connected || poll_master_changed);
+			// A returning master needs the full table even if its identifier is unchanged.
+			const bool get_all_data = has_master_device_changed || new_poll_session;
+			if (!slave_data[slave_address_from_master].indication_data_frame->GetUpdates(byte_offsets, values, get_all_data))
 			{
 				// Warning
 				Logging::LogWarningF("ProtocolGenisysSlave::ProcessMessage: Failed To Get Data Updates For Slave ID [%d]", slave_address_from_master);
@@ -204,17 +326,21 @@ namespace LSY
 
 			bool is_updates = !values.empty();
 
+			uint8_t responce_msg_type;
+
 			// Send "Acknowledge Master Message" Back To Master
 			if (!is_updates)
 			{
-				gen_msg_responce.push_back(GEN_MSG_TYPE_ACK_MASTER);
+				responce_msg_type = GEN_MSG_TYPE_ACK_MASTER;
+				gen_msg_responce.push_back(responce_msg_type);
 				gen_msg_responce.push_back(slave_address_from_master);
 			}
 
 			// Send "Indication Data Response" Back To Master
 			else
 			{
-				gen_msg_responce.push_back(GEN_MSG_TYPE_IND_RESP);
+				responce_msg_type = GEN_MSG_TYPE_IND_RESP;
+				gen_msg_responce.push_back(responce_msg_type);
 				gen_msg_responce.push_back(slave_address_from_master);
 
 				for (size_t i = 0; i < byte_offsets.size(); i++)
@@ -232,25 +358,28 @@ namespace LSY
 
 				gen_msg_responce.push_back((uint8_t)crc_low);
 				gen_msg_responce.push_back((uint8_t)crc_high);
+
 			}
+
+			// Refresh the timer after building the poll reply, including an ACK with no updates.
+			if (track_polls)
+				slave.last_poll = std::chrono::steady_clock::now();
+
+			// Report the old master leaving before reporting a replacement master.
+			if (new_poll_session)
+			{
+				DisconnectMaster(slave);
+
+				slave.poll_master = master_device;
+				slave.master_connected = true;
+				if (callback_)
+					callback_(slave.slave_id, master_device, CALLBACKEVENT::MASTER_CONNECTED);
+			}
+
+			// Log Responce Message
+			LogGenisysMsg(master_device, slave_address_from_master, false, responce_msg_type, false, 0, gen_msg_responce, "Log Misses F6 Termination - Will Be Fixed");
+
 		}
-
-
-
-		else if (msg_type == GEN_MSG_TYPE_ACK_SLAVE)
-		{
-			crc_low = gen_msg_buffer[2];
-			crc_high = gen_msg_buffer[3];
-
-			// Notify User Code That The Master Has Received Our Last Update
-			// We Can Reset Our User Updates Now
-			indication_data_frames[slave_address_from_master]->DataAck();
-
-			// Send "Acknowledge Master Message" Back To Master
-			gen_msg_responce.push_back(GEN_MSG_TYPE_ACK_MASTER);
-			gen_msg_responce.push_back(slave_address_from_master);
-		}
-
 
 
 		else if (msg_type == GEN_MSG_TYPE_RECALL)
@@ -258,10 +387,15 @@ namespace LSY
 			crc_low = gen_msg_buffer[2];
 			crc_high = gen_msg_buffer[3];
 
+
+			// Log Recived Message
+			LogGenisysMsg(master_device, slave_address_from_master, true, msg_type, false, 0, gen_msg_buffer, "");
+
+
 			// Get All Data From User Code
 			std::vector<uint64_t> byte_offsets;
 			std::vector<uint8_t> values;
-			if (!indication_data_frames[slave_address_from_master]->GetUpdates(byte_offsets, values, true))
+			if (!slave_data[slave_address_from_master].indication_data_frame->GetUpdates(byte_offsets, values, true))
 			{
 				// Warning
 				Logging::LogWarningF("ProtocolGenisysSlave::ProcessMessage: Failed To Get Data Updates For Slave ID [%d]", slave_address_from_master);
@@ -269,7 +403,8 @@ namespace LSY
 			}
 
 			// Create Response Message
-			gen_msg_responce.push_back(GEN_MSG_TYPE_IND_RESP);
+			uint8_t responce_msg_type = GEN_MSG_TYPE_IND_RESP;
+			gen_msg_responce.push_back(responce_msg_type);
 			gen_msg_responce.push_back(slave_address_from_master);
 
 			for (size_t i = 0; i < byte_offsets.size(); i++)
@@ -280,8 +415,9 @@ namespace LSY
 			}
 
 			// Mode Byte (From Example)
+			uint8_t mode_byte_value = slave_data[slave_address_from_master].mode_byte_return_value;
 			gen_msg_responce.push_back(GEN_MODE_BYTE);
-			gen_msg_responce.push_back(GEN_MODE_BYTE_RETURN_VALUE);
+			gen_msg_responce.push_back(mode_byte_value);
 
 			// Calculate CRC
 			uint8_t crc_low = 0;
@@ -291,8 +427,34 @@ namespace LSY
 
 			gen_msg_responce.push_back(crc_low);
 			gen_msg_responce.push_back(crc_high);
+
+			// Log Responce Message
+			LogGenisysMsg(master_device, slave_address_from_master, false, responce_msg_type, true, mode_byte_value, gen_msg_responce, "Log Misses F6 Termination - Will Be Fixed");
+
 		}
 
+
+		else if (msg_type == GEN_MSG_TYPE_ACK_SLAVE)
+		{
+			crc_low = gen_msg_buffer[2];
+			crc_high = gen_msg_buffer[3];
+
+			// Log Recived Message
+			LogGenisysMsg(master_device, slave_address_from_master, true, msg_type, false, 0, gen_msg_buffer, "");
+
+			// Notify User Code That The Master Has Received Our Last Update
+			// We Can Reset Our User Updates Now
+			slave_data[slave_address_from_master].indication_data_frame->DataAck();
+
+			// Send "Acknowledge Master Message" Back To Master
+			uint8_t responce_msg_type = GEN_MSG_TYPE_ACK_MASTER;
+			gen_msg_responce.push_back(responce_msg_type);
+			gen_msg_responce.push_back(slave_address_from_master);
+
+			// Log Responce Message
+			LogGenisysMsg(master_device, slave_address_from_master, false, responce_msg_type, false, 0, gen_msg_responce, "Log Misses F6 Termination - Will Be Fixed");
+
+		}
 
 
 		else if (msg_type == GEN_MSG_TYPE_CONTROL)
@@ -310,6 +472,18 @@ namespace LSY
 			if ((gen_msg_buffer.size() % 2) != 1)
 			{
 				// Error - Control Message Should Contain An Odd Number Of Bytes
+				return false;
+			}
+
+
+			// Save a copy of the raw recived data for logging purposes
+			auto recv_msg = gen_msg_buffer;
+
+
+			// Check this slave has a control data frame
+			if (!slave_data[slave_address_from_master].is_control_frame)
+			{
+				Logging::LogWarningF("ProtocolGenisysSlave::ProcessMessage: Slave ID [%d] Does Not Have A Control Data Frame", slave_address_from_master);
 				return false;
 			}
 
@@ -349,20 +523,28 @@ namespace LSY
 
 			// Check For Mode Byte & Mode Byte Value
 			// Note: Mode Bytes Will Be At The End, Maybe Loop From Back To Front
+			bool has_mode_byte = false;
 			uint8_t mode_byte_value = 0;
 			for (int i = 0; i < values.size(); i++)
 			{
 				if (byte_offsets[i] == GEN_MODE_BYTE)
 				{
+					has_mode_byte = true;
 					mode_byte_value = values[i];
+
+					// Update Slave Object With Last Mode Byte Recived From Master
+					slave_data[slave_address_from_master].last_mode_byte_recived = mode_byte_value;
+					slave_data[slave_address_from_master].has_received_mode_byte = true;
+
 					byte_offsets.erase(byte_offsets.begin() + i);	// Remove Mode Byte From byte_offsets
 					values.erase(values.begin() + i);				// Remove Mode Byte From values
+
 					break;
 				}
 			}
 
 
-			int num_bytes_processed = control_data_frames[slave_address_from_master]->RecvBytes(byte_offsets, values);
+			int num_bytes_processed = slave_data[slave_address_from_master].control_data_frame->RecvBytes(byte_offsets, values);
 			if (num_bytes_processed != values.size())
 			{
 				// Warning
@@ -370,6 +552,11 @@ namespace LSY
 				return false;
 			}
 			
+
+			// Log Recived Message
+			LogGenisysMsg(master_device, slave_address_from_master, true, msg_type, has_mode_byte, mode_byte_value, recv_msg, "");
+
+
 
 
 
@@ -384,10 +571,13 @@ namespace LSY
 			// Exampe: f152f6
 
 			// Construct Responce Message
-			gen_msg_responce.push_back(GEN_MSG_TYPE_IND_RESP);
+			uint8_t responce_msg_type = GEN_MSG_TYPE_IND_RESP;
+			uint8_t mode_byte_return_value = slave_data[slave_address_from_master].mode_byte_return_value;
+
+			gen_msg_responce.push_back(responce_msg_type);
 			gen_msg_responce.push_back(slave_address_from_master);
 			gen_msg_responce.push_back(GEN_MODE_BYTE);
-			gen_msg_responce.push_back(GEN_MODE_BYTE_RETURN_VALUE);
+			gen_msg_responce.push_back(mode_byte_return_value);
 
 			// Calculate CRC
 			uint8_t crc_low = 0;
@@ -398,8 +588,11 @@ namespace LSY
 			gen_msg_responce.push_back(crc_low);
 			gen_msg_responce.push_back(crc_high);
 
-		}
 
+			// Log Responce Message
+			LogGenisysMsg(master_device, slave_address_from_master, false, responce_msg_type, true, mode_byte_return_value, gen_msg_responce, "Log Misses F6 Termination - Will Be Fixed");
+
+		}
 
 
 		else
@@ -416,20 +609,9 @@ namespace LSY
 
 		Logging::LogDebugF("ProtocolGenisysSlave::ProcessMessage: [%d] To Master (Including ESCAPE Chars)", slave_address_from_master);
 		LogGenisysMsg(gen_msg_responce);
-
-
 		
-		if (indication_data_frames.count(slave_address_from_master))
-		{
-			indication_data_frames[slave_address_from_master]->SetLastMasterIp(master_ip);
-			indication_data_frames[slave_address_from_master]->IncrementResponceCounter();
-		}
-		
-		if (control_data_frames.count(slave_address_from_master))
-		{
-			control_data_frames[slave_address_from_master]->SetLastMasterIp(master_ip);
-			control_data_frames[slave_address_from_master]->IncrementResponceCounter();
-		}
+		// Increment Responce Message Counter For This Slave ID
+		slave_data[slave_address_from_master].responce_counter++;
 
 		return true;
 	}
@@ -444,7 +626,7 @@ namespace LSY
 			return false;
 		}
 
-		if (gen_msg_buffer.size() < 5)
+		if (gen_msg_buffer.size() < 3)
 		{
 			// Error - Message From Master Is Too Small
 			Logging::LogDebugF("ProtocolGenisysSlave::IsMasterMessageValid: Message From Master Is Too Small");
@@ -501,7 +683,6 @@ namespace LSY
 		return !gen_msg_buffer.empty();
 	}
 
-
 	void ProtocolGenisysSlave::AddEscapeChars(std::vector<uint8_t> & gen_msg_buffer)
 	{
 		std::vector<uint8_t> temp_buff;
@@ -551,6 +732,18 @@ namespace LSY
 		return true;
 	}
 
+	std::string ProtocolGenisysSlave::GetMessageHexString(const std::vector<uint8_t>& gen_msg_buffer)
+	{
+		char log_msg_buffer[1000];
+		size_t log_msg_buffer_size = 980;
+
+		for (int i = 0; i < gen_msg_buffer.size(); i++)
+			sprintf_s(log_msg_buffer, log_msg_buffer_size, "%s%02x ", log_msg_buffer, gen_msg_buffer[i]);
+
+		std::string str = log_msg_buffer;
+		return str;
+	}
+
 	void ProtocolGenisysSlave::LogGenisysMsg(const std::vector<uint8_t> & gen_msg_buffer)
 	{
 		// To Do: Size check log_msg_buffer
@@ -567,5 +760,57 @@ namespace LSY
 		std::string str = log_msg_buffer;
 		Logging::LogDebug(str);
 	}
+
+
+	void ProtocolGenisysSlave::LogGenisysMsg(std::string master_ip, uint8_t slave_id, bool is_recv, uint8_t message_type, bool is_mode_byte, uint8_t mode_byte, const std::vector<uint8_t>& raw_data, std::string additional_notes)
+	{
+
+		// Log Message Format:
+		// DateTime,Master_IP,Slave_ID,[RECV or RESP],Message_Type,Mode_Byte,Raw_Data,Additional_Notes
+
+		// Get Message Type Name
+		std::string message_type_name;
+		switch (message_type)
+		{
+		case GEN_MSG_TYPE_ACK_MASTER:
+			message_type_name = "---ACK_MASTER---";
+			break;
+		case GEN_MSG_TYPE_IND_RESP:
+			message_type_name = "----IND_RESP----";
+			break;
+		case GEN_MSG_TYPE_END_MSG:
+			message_type_name = "----END_MSG-----";
+			break;
+		case GEN_MSG_TYPE_ACK_SLAVE:
+			message_type_name = "---ACK_SLAVE----";
+			break;
+		case GEN_MSG_TYPE_POLL:
+			message_type_name = "------POLL------";
+			break;
+		case GEN_MSG_TYPE_CONTROL:
+			message_type_name = "----CONTROL-----";
+			break;
+		case GEN_MSG_TYPE_RECALL:
+			message_type_name = "-----RECALL-----";
+			break;
+		default:
+			message_type_name = "----UNKNOWN-----";
+		}
+
+
+		// Get Time Stamp For Now
+		auto time_now = std::chrono::system_clock::now();
+
+		// Convert Raw Data To Hex String
+		std::string hex_data = GetMessageHexString(raw_data);
+
+		// Create CSV Log String
+		std::stringstream ss;
+		ss << std::chrono::system_clock::to_time_t(time_now) << "," << master_ip << "," << (int)slave_id << "," << (is_recv ? "RECV" : "RESP") << "," << message_type_name << "," << (is_mode_byte ? std::to_string(mode_byte) : "NO_MODE") << "," << hex_data << "," << additional_notes;
+
+		if (!Logging::LogProto(ss.str()))
+			Logging::LogInfo(ss.str());
+	}
+
 
 }

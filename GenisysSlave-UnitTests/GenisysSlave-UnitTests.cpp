@@ -24,9 +24,73 @@ bool LogInfo(const std::string& log_msg);
 bool LogWarning(const std::string& log_msg);
 bool LogError(const std::string& log_msg);
 
+bool ModeByteTests()
+{
+	auto indications = std::make_shared<DataFrame>("Indications", 1);
+	auto controls = std::make_shared<DataFrame>("Controls", 1);
+	ProtocolGenisysSlave protocol;
+	ProtocolGenisysSlave::SlaveData data;
+	if (!protocol.AddDataFrame(1, indications, controls) ||
+		!protocol.GetSlaveData(1, data) || data.has_received_mode_byte ||
+		data.last_mode_byte_recived != 0 || data.mode_byte_return_value != 0x04 ||
+		protocol.SetModeByteReturnValue(2, 0x10))
+		return false;
+
+	std::vector<uint8_t> message = { 0xFC, 0x01, 0xE0, 0x00, 0x00, 0x00, 0xF6 };
+	if (!protocol.ProcessMessages(message, "master") || message.size() < 4 ||
+		message[0] != 0xF2 || message[2] != 0xE0 || message[3] != 0x04 ||
+		!protocol.GetSlaveData(1, data) || !data.has_received_mode_byte || data.last_mode_byte_recived != 0)
+		return false;
+
+	if (!protocol.SetModeByteReturnValue(1, 0xFF))
+		return false;
+	message = { 0xFC, 0x01, 0xE0, 0xF0, 0x06, 0x00, 0x00, 0xF6 };
+	if (!protocol.ProcessMessages(message, "master") || message.size() < 5 ||
+		message[0] != 0xF2 || message[2] != 0xE0 || message[3] != 0xF0 || message[4] != 0x0F ||
+		!protocol.GetSlaveData(1, data) || data.last_mode_byte_recived != 0xF6 || data.mode_byte_return_value != 0xFF)
+		return false;
+
+	message = { 0xFD, 0x01, 0x00, 0x00, 0xF6 };
+	if (!protocol.ProcessMessages(message, "master") || message.size() < 7 ||
+		message[0] != 0xF2 || message[4] != 0xE0 || message[5] != 0xF0 || message[6] != 0x0F ||
+		!protocol.GetSlaveData(1, data) || data.last_mode_byte_recived != 0xF6)
+		return false;
+
+	return true;
+}
+
+bool ProtocolLoggingTests()
+{
+	auto indications = std::make_shared<DataFrame>("Indications", 1);
+	auto controls = std::make_shared<DataFrame>("Controls", 1);
+	ProtocolGenisysSlave protocol;
+	if (!protocol.AddDataFrame(1, indications, controls))
+		return false;
+
+	std::vector<std::string> info_messages;
+	std::vector<std::string> protocol_messages;
+	Logging::AddLogInfoFunc([&info_messages](std::string message) { info_messages.push_back(message); return true; });
+
+	auto process_message = [&protocol]()
+		{
+			std::vector<uint8_t> message = { 0xFC, 0x01, 0xE0, 0x00, 0x00, 0x00, 0xF6 };
+			return protocol.ProcessMessages(message, "master");
+		};
+
+	bool passed = process_message() && !info_messages.empty();
+	info_messages.clear();
+	Logging::AddLogProtoFunc([&protocol_messages](std::string message) { protocol_messages.push_back(message); return true; });
+	passed = process_message() && passed && !protocol_messages.empty() && info_messages.empty();
+	passed = passed && protocol_messages[0].find(",master,1,RECV,") != std::string::npos;
+
+	Logging::AddLogProtoFunc([](const std::string&) { return false; });
+	passed = process_message() && passed && !info_messages.empty();
+	Logging::AddLogInfoFunc(LogInfo);
+	return passed;
+}
 
 
-int main()
+int main(int argc, char* argv[])
 {
 	 
 	// Add Logging Functions To "GenisysSlave-Lib"
@@ -35,6 +99,19 @@ int main()
 	Logging::AddLogWarningFunc(LogWarning);
 	Logging::AddLogErrorFunc(LogError);
 
+	if (argc > 1 && std::string(argv[1]) == "--protocol-logging-tests")
+	{
+		bool passed = ProtocolLoggingTests();
+		std::cout << (passed ? "Protocol logging tests passed" : "Protocol logging tests failed") << std::endl;
+		return passed ? 0 : 1;
+	}
+
+	if (argc > 1 && std::string(argv[1]) == "--mode-byte-tests")
+	{
+		bool passed = ModeByteTests();
+		std::cout << (passed ? "Mode byte tests passed" : "Mode byte tests failed") << std::endl;
+		return passed ? 0 : 1;
+	}
 
 	// Run Unit Tests
 	//DataFrame_Tests data_frame_tests;
@@ -68,8 +145,7 @@ int main()
 
 	// Protocol Setup
 	std::shared_ptr<ProtocolGenisysSlave> protocol = std::make_shared<ProtocolGenisysSlave>();
-	protocol->AddDataFrame(slave_id, true, data_ctrl);
-	protocol->AddDataFrame(slave_id, false, data_ind);
+	protocol->AddDataFrame(slave_id, data_ind, data_ctrl);
 	
 
 

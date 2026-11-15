@@ -7,10 +7,14 @@
 
 namespace LSY
 {
+
 	std::function<bool(std::string)> Logging::log_debug;
 	std::function<bool(std::string)> Logging::log_info;
 	std::function<bool(std::string)> Logging::log_warning;
 	std::function<bool(std::string)> Logging::log_error;
+	std::function<bool(std::string)> Logging::log_proto;
+
+
 
 	bool Logging::AddLogDebugFunc(std::function<bool(std::string)> func)
 	{
@@ -52,6 +56,21 @@ namespace LSY
 		return false;
 	}
 
+	bool Logging::AddLogProtoFunc(std::function<bool(std::string)> func)
+	{
+		if (func)
+		{
+			log_proto = func;
+			return true;
+		}
+		return false;
+	}
+
+
+
+
+
+
 	bool Logging::LogDebug(const std::string &log_msg)
 	{
 		if (log_debug)
@@ -79,6 +98,17 @@ namespace LSY
 			return log_error(log_msg);
 		return false;
 	}
+
+	bool Logging::LogProto(const std::string& log_msg)
+	{
+		if (log_proto)
+			return log_proto(log_msg);
+		return false;
+	}
+
+
+
+
 
 
 	bool Logging::LogDebugF(const char* format, ...)
@@ -168,5 +198,31 @@ namespace LSY
 		std::string log_msg = buffer;
 		return LogError(log_msg);
 	}
+
+	bool Logging::LogProtoF(const char* format, ...)
+	{
+		char buffer[300];
+
+		va_list args;
+		va_start(args, format);
+
+		int err = vsnprintf_s(buffer, 280, _TRUNCATE, format, args);
+
+		va_end(args);
+
+		if (err == -1)
+		{
+			// Error - Message Was Larger Than 300 Chars And Was Truncated
+			std::string error_msg = "Logging::LogProto: String Was Truncated";
+			LogError(error_msg);
+		}
+
+		std::string log_msg = buffer;
+		return LogProto(log_msg);
+	}
+
+
+
+
 }
 
