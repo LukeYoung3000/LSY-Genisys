@@ -42,7 +42,7 @@ struct Peer
 			[this, id](std::string, LSY::DataFrame::CALLBACKEVENT event)
 			{ if (event == LSY::DataFrame::CALLBACKEVENT::CONTROL_CHANGE) ++control_callbacks[id]; };
 		controls->AddEventCallback(callback);
-		Check(protocol.AddDataFrame(id, false, indications) && protocol.AddDataFrame(id, true, controls), "Configure slave protocol");
+		Check(protocol.AddDataFrame(id, indications, controls), "Configure slave protocol");
 	}
 	void Send(const Bytes& bytes, uint16_t master_port)
 	{

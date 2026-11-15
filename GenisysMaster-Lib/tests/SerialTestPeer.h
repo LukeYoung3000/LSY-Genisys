@@ -22,7 +22,7 @@ struct StreamPeer final : LSY::MasterTransport
 		auto indication = std::make_shared<LSY::DataFrame>("Serial slave", 8);
 		auto control = std::make_shared<LSY::DataFrame>("Serial control", 8);
 		indication->WriteByte(0, value); frames[id] = indication; controls[id] = control;
-		Check(protocol.AddDataFrame(id, false, indication) && protocol.AddDataFrame(id, true, control), "Register serial slave peer");
+		Check(protocol.AddDataFrame(id, indication, control), "Register serial slave peer");
 	}
 	bool Start() override { if (open) return false; open = true; return true; }
 	void Stop() override { open = pending = false; incoming.clear(); }

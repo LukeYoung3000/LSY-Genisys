@@ -202,7 +202,7 @@ void CheckNativePair(const std::string& masterPort, const std::string& slavePort
 		auto input = std::make_shared<LSY::DataFrame>("Native slave", 8);
 		auto output = std::make_shared<LSY::DataFrame>("Native slave controls", 8);
 		input->WriteByte(0, 0xF6); peerControls[id] = output;
-		Check(slave.AddDataFrame(id, false, input) && slave.AddDataFrame(id, true, output), "Native slave frames");
+		Check(slave.AddDataFrame(id, input, output), "Native slave frames");
 		indications[id] = std::make_shared<LSY::MasterDataFrame>("Native indications", 8);
 		controls[id] = std::make_shared<LSY::MasterDataFrame>("Native controls", 8);
 		Check(protocol->AddDataFrame(id, false, indications[id]) && protocol->AddDataFrame(id, true, controls[id]) && master.AddSlave(id), "Native master frames");

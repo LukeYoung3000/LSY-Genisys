@@ -1,11 +1,14 @@
-﻿
+
 // STL
+#include <algorithm>
 #include <chrono>
 #include <sstream> 
 
 // wxWidgets
 #include <wx/msgdlg.h>
 #include <wx/app.h>
+#include <wx/filename.h>
+#include <wx/stdpaths.h>
 
 // GenisysSlave-Lib
 #include "GenisysSlave-Lib-Version.h"
@@ -20,47 +23,64 @@
 using namespace std::chrono_literals;
 using namespace LSY;
 
-
-
-cEvents::cEvents() : cFrame(nullptr)
+cEvents::cEvents() : cFrame(nullptr), refresh_timer_(this)
 {
 	// UI States - Genisys Server Setup
 	udp_rx_port_ = -1;
 	udp_tx_port_ = -1;
-	genisys_slave_id_ = -1;
-	genisys_frame_size_ = -1;
 	serial_com_port_ = "";
 	serial_baud_rate_ = 9600;
 	serial_data_bits_ = 8;
 	serial_stop_bits_ = 1;
 	serial_parity_ = "None";
 
-	// UI States - Genisys Database Updates
-	bit_write_request_ = false;
-	byte_offset_ = -1;
-	bit_offset_ = -1;
-	bit_value_ = false;
-
 	// Genisys Slave
-	data_frame_1_ = nullptr;
-	data_frame_2_ = nullptr;
 	protocol_ = nullptr;
 	network_ = nullptr;
 
 
 	// Setup Logging
 	logger = new wxLogWindow(this, "Log", false, false);
+	protocol_logger = new wxLogWindow(this, "Protocol Log", false, false);
+	protocol_logger->DetachOldLog();
+	for (wxWindowList::compatibility_iterator node = protocol_logger->GetFrame()->GetChildren().GetFirst(); node; node = node->GetNext())
+	{
+		wxTextCtrl* log_text = wxDynamicCast(node->GetData(), wxTextCtrl);
+		if (log_text)
+			log_text->SetFont(wxFont(wxFontInfo(log_text->GetFont().GetPointSize()).Family(wxFONTFAMILY_TELETYPE)));
+	}
 	wxLog::SetActiveTarget(logger);
 	wxLogNull no_log;
+	wxString protocol_log_path = wxFileName(wxStandardPaths::Get().GetExecutablePath()).GetPathWithSep() + "Protocol Log.txt";
+	if (!protocol_log_file_.Open(protocol_log_path, "ab"))
+		wxMessageBox("Unable to open the protocol log file:\n" + protocol_log_path, "Protocol Log", wxOK | wxICON_ERROR, this);
 	
 	// Add Logging Functions To "GenisysSlave-Lib"
 	Logging::AddLogDebugFunc(LogDebug);
 	Logging::AddLogInfoFunc(LogInfo);
 	Logging::AddLogWarningFunc(LogWarning);
 	Logging::AddLogErrorFunc(LogError);
+	Logging::AddLogProtoFunc([this](const std::string& log_msg) { return LogProto(log_msg); });
+
+	m_slaveList->Append("Slave 1");
+	m_slaveList->SetSelection(0);
+	m_slaveList->Bind(wxEVT_LISTBOX, [this](wxCommandEvent&) { SelectSlave(); });
+	m_addSlave->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) { AddSlave(); });
+	m_removeSlave->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) { RemoveSlave(); });
+	m_saveSlave->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) { SaveSelectedSlave(); });
+	Bind(wxEVT_TIMER, [this](wxTimerEvent&) { RefreshSlaveView(); }, refresh_timer_.GetId());
+	SelectSlave();
+	UpdateSlaveControls();
 
 	// Connect Idle Event
 	//this->Bind(wxEVT_IDLE, &cEvents::IdleEvent, this);
+}
+
+cEvents::~cEvents()
+{
+	ShutdownGenisysNetwork();
+	Logging::AddLogProtoFunc([](const std::string&) { return false; });
+	delete protocol_logger;
 }
 
 void cEvents::TopLevelWindowCloseEvent(wxCloseEvent& event)
@@ -78,30 +98,9 @@ void cEvents::ProtocolSelectionEvent(wxCommandEvent& event)
 {
 	int selection = m_radioBox1->GetSelection();
 
-	// 0 = UDP, 1 = TCP, 2 = Serial
-	bool enable_network = (selection == 0 || selection == 1);
-	bool enable_serial = (selection == 2);
+	ShowTransportSettings(selection);
 
-	// Enable/Disable UDP/TCP controls
-	m_staticText2->Enable(enable_network);
-	m_textUDPrx->Enable(enable_network);
-	m_staticText3->Enable(enable_network);
-	m_textUDPtx->Enable(enable_network && selection == 0);  // UDP TX port only for UDP
-
-	// Enable/Disable Serial controls
-	m_staticTextSerialSettings->Enable(enable_serial);
-	m_staticTextComPort->Enable(enable_serial);
-	m_comboComPort->Enable(enable_serial);
-	m_staticTextBaudRate->Enable(enable_serial);
-	m_comboBaudRate->Enable(enable_serial);
-	m_staticTextDataBits->Enable(enable_serial);
-	m_comboDataBits->Enable(enable_serial);
-	m_staticTextStopBits->Enable(enable_serial);
-	m_comboStopBits->Enable(enable_serial);
-	m_staticTextParity->Enable(enable_serial);
-	m_comboParity->Enable(enable_serial);
-
-	if (enable_serial)
+	if (selection == 2)
 	{
 		// Populate COM port dropdown with available ports
 		this->PopulateComPorts();
@@ -110,102 +109,146 @@ void cEvents::ProtocolSelectionEvent(wxCommandEvent& event)
 	event.Skip();
 }
 
-void cEvents::StartStopServerEvent(wxCommandEvent& event)
+bool cEvents::GetModeByteReturnValue(uint8_t& value)
 {
-
-	if (m_toggleStartStop->GetValue() == true) // Turn On Genisys Server
+	unsigned long parsed_value = 0;
+	if (!m_textModeByteReturn->GetValue().ToULong(&parsed_value, 16) || parsed_value > 0xFF)
 	{
-		wxLogMessage("cEvents::StartStopServerEvent: Start Button Clicked");
-
-		if (StartupGenisysNetwork())
-		{
-			// Enable User Controls On The Grid
-			m_grid3->Enable(true);
-			m_grid31->Enable(true);
-
-			// Setup Grid Size Based On Genisys Slave DB Bits
-
-			// Indications Grid
-			m_grid3->DeleteRows(0, m_grid3->GetNumberRows());
-			m_grid3->AppendRows(genisys_frame_size_);
-
-			// Controls Grid
-			m_grid31->DeleteRows(0, m_grid31->GetNumberRows());
-			m_grid31->AppendRows(genisys_frame_size_);
-
-
-			// Setup Grid Values Based On Genisys Slave DB Bits
-			// Note: For Now Just Assume 0
-			for (int i = 0; i < genisys_frame_size_; i++)
-			{
-				for (int j = 0; j < 8; j++)
-				{
-					// Indications
-					m_grid3->SetCellValue(wxGridCellCoords(i, j), "0");
-					m_grid3->SetCellBackgroundColour(i, j, *wxRED);
-
-					// Controls
-					m_grid31->SetCellValue(wxGridCellCoords(i, j), "0");
-					m_grid31->SetCellBackgroundColour(i, j, *wxRED);
-				}
-			}
-
-		}
-
-		else
-		{
-			// Disable User Controls On The Grid
-			m_grid3->Enable(false);
-			m_grid31->Enable(false);
-
-			// Set Start/Stop Button State
-			m_toggleStartStop->SetValue(false);
-		}
+		wxMessageBox("Enter a hexadecimal mode byte from 00 to FF.", "Invalid Mode Byte", wxOK | wxICON_ERROR, this);
+		return false;
 	}
 
+	value = static_cast<uint8_t>(parsed_value);
+	m_textModeByteReturn->ChangeValue(wxString::Format("0x%02X", static_cast<unsigned int>(value)));
+	return true;
+}
 
+void cEvents::SelectSlave()
+{
+	const auto& slave = slaves_[m_slaveList->GetSelection()];
+	m_textSlaveID->ChangeValue(wxString::Format("%d", slave.id));
+	m_textFrameSize->ChangeValue(wxString::Format("%d", slave.frameSize));
+	m_textModeByteReturn->ChangeValue(wxString::Format("0x%02X", static_cast<unsigned int>(slave.responseMode)));
+	RefreshSlaveView();
+}
+
+bool cEvents::SaveSelectedSlave()
+{
+	const int selection = m_slaveList->GetSelection();
+	int id = 0;
+	int frameSize = 0;
+	if (!m_textSlaveID->GetValue().ToInt(&id) || id < 1 || id > 255 ||
+		!m_textFrameSize->GetValue().ToInt(&frameSize) || frameSize < 1 || frameSize > 125)
+	{
+		wxMessageBox("Enter a slave ID from 1 to 255 and a frame size from 1 to 125 bytes.",
+			"Invalid Slave Settings", wxOK | wxICON_ERROR, this);
+		return false;
+	}
+	for (int i = 0; i < static_cast<int>(slaves_.size()); ++i)
+	{
+		if (i != selection && slaves_[i].id == id)
+		{
+			wxMessageBox("Each slave must have a unique ID.", "Duplicate Slave ID", wxOK | wxICON_ERROR, this);
+			return false;
+		}
+	}
+	uint8_t mode = 0;
+	if (!GetModeByteReturnValue(mode))
+		return false;
+
+	slaves_[selection] = {id, frameSize, mode};
+	RefreshSlaveView();
+	return true;
+}
+
+void cEvents::AddSlave()
+{
+	for (int id = 1; id <= 255; ++id)
+	{
+		if (std::any_of(slaves_.begin(), slaves_.end(), [id](const SlaveConfig& slave) { return slave.id == id; }))
+			continue;
+
+		slaves_.push_back({id, 125});
+		m_slaveList->SetSelection(m_slaveList->Append(wxString::Format("Slave %d", id)));
+		SelectSlave();
+		UpdateSlaveControls();
+		return;
+	}
+}
+
+void cEvents::RemoveSlave()
+{
+	const int selection = m_slaveList->GetSelection();
+	slaves_.erase(slaves_.begin() + selection);
+	m_slaveList->Delete(selection);
+	m_slaveList->SetSelection(wxMin(selection, static_cast<int>(slaves_.size()) - 1));
+	SelectSlave();
+	UpdateSlaveControls();
+}
+
+void cEvents::UpdateSlaveControls()
+{
+	const bool running = network_thread_.joinable();
+	m_toggleStartStop->SetValue(running);
+	m_toggleStartStop->SetLabel(running ? "Stop" : "Start");
+	m_addSlave->Enable(!running && slaves_.size() < 255);
+	m_removeSlave->Enable(!running && slaves_.size() > 1);
+	m_saveSlave->Enable(!running);
+	m_textSlaveID->Enable(!running);
+	m_textFrameSize->Enable(!running);
+	m_radioBox1->Enable(!running);
+	m_textPollTimeout->Enable(!running);
+	m_textUDPrx->Enable(!running);
+	m_textUDPtx->Enable(!running);
+	for (auto* field : {m_comboComPort, m_comboBaudRate, m_comboDataBits, m_comboStopBits, m_comboParity})
+		field->Enable(!running);
+	m_grid3->Enable(running);
+	m_grid31->Enable(running);
+}
+
+void cEvents::ApplyModeByteEvent(wxCommandEvent& event)
+{
+	uint8_t value = 0;
+	if (!GetModeByteReturnValue(value))
+		return;
+
+	auto& slave = slaves_[m_slaveList->GetSelection()];
+	slave.responseMode = value;
+	if (network_thread_.joinable())
+	{
+		std::lock_guard<std::mutex> lock(slave_state_mutex_);
+		edits_.push_back({slave.id, -1, -1, value});
+	}
+}
+
+void cEvents::StartStopServerEvent(wxCommandEvent& event)
+{
+	if (m_toggleStartStop->GetValue())
+	{
+		if (SaveSelectedSlave() && StartupGenisysNetwork())
+			refresh_timer_.Start(50);
+	}
 	else
 	{
-		wxLogMessage("cEvents::StartStopServerEvent: Stop Button Clicked");
-
-		// Disable User Controls On The Grid
-		m_grid3->Enable(false);
-		m_grid31->Enable(false);
-
 		ShutdownGenisysNetwork();
 	}
 
-
+	UpdateSlaveControls();
+	RefreshSlaveView();
 	event.Skip();
 }
 
 void cEvents::GridClickEvent(wxGridEvent& event)
 {
-	// Get Coord Clicked
-	wxGridCellCoords coord = wxGridCellCoords(event.GetRow(), event.GetCol());
-
-	// Get Value
-	wxString value = m_grid3->GetCellValue(coord);
-
-
-	// Request To Genisys Thread To Change A Bit Value
-	// Note: These Variable Are Atomic
-	// The Genisys Server Thread Check For Changes To "bit_write_request_"
-	if (!bit_write_request_)
+	if (network_thread_.joinable() && event.GetRow() >= 0 && event.GetCol() >= 0)
 	{
-		if (value == wxString("1"))
-			bit_value_ = false;
-		else
-			bit_value_ = true;
-		byte_offset_ = coord.GetRow();
-		bit_offset_ = 7 - coord.GetCol();
-		bit_write_request_ = true;
+		const auto& slave = slaves_[m_slaveList->GetSelection()];
+		// Capture the ID on click so a queued edit follows the original slave.
+		std::lock_guard<std::mutex> lock(slave_state_mutex_);
+		edits_.push_back({slave.id, event.GetRow(), 7 - event.GetCol(), -1});
 	}
-
 	event.Skip();
 }
-
-
 
 void cEvents::MenuHelpAboutOnMenuSelection(wxCommandEvent& event)
 {
@@ -228,6 +271,12 @@ void cEvents::MenuHelpLogOnMenuSelection(wxCommandEvent& event)
 {
 	// Show the log window
 	logger->Show();
+	event.Skip();
+}
+
+void cEvents::MenuHelpProtocolLogOnMenuSelection(wxCommandEvent& event)
+{
+	protocol_logger->Show();
 	event.Skip();
 }
 
@@ -258,6 +307,7 @@ bool cEvents::StartupGenisysNetwork()
 		ShutdownGenisysNetwork();
 		return false;
 	}
+
 
 
 	// Radio button "1" is "TCP"
@@ -300,11 +350,6 @@ bool cEvents::StartupGenisysNetwork()
 	}
 
 
-	// Protocol Parameters
-	int_check = int_check && m_textSlaveID->GetValue().ToInt(&genisys_slave_id_);			// Get Genisys Slave ID
-	int_check = int_check && m_textFrameSize->GetValue().ToInt(&genisys_frame_size_);		// Get Genisys Frame Size
-
-
 	if (int_check == false)
 	{
 		// Error: Invalid Data Input
@@ -313,46 +358,36 @@ bool cEvents::StartupGenisysNetwork()
 		return false;
 	}
 
-	// Max Frame Size Is Hardcoded At 125
-	if (genisys_frame_size_ > 125)
+	// This protocol setting applies to every transport.
+	const wxString poll_timeout_text = m_textPollTimeout->GetValue().Strip(wxString::both);
+	unsigned long poll_timeout_ms = 0;
+	if (!poll_timeout_text.IsNumber() || !poll_timeout_text.ToULong(&poll_timeout_ms) || poll_timeout_ms > UINT32_MAX)
 	{
-		genisys_frame_size_ = 125;
-		m_textFrameSize->SetValue("125");
-	}
-
-
-
-
-	// Setup Genisys UDP Slave
-
-	// Data Frame Setup
-	data_frame_1_ = std::make_shared<DataFrame>("Genisys Slave 1 Indications", genisys_frame_size_);
-	data_frame_2_ = std::make_shared<DataFrame>("Genisys Slave 1 Controls", genisys_frame_size_);
-
-	// Create Callback For Control Message Events On Data Frame 2
-	std::function<void(std::string, LSY::DataFrame::CALLBACKEVENT)> callback_func = \
-		[this](std::string table_name, LSY::DataFrame::CALLBACKEVENT callback_event_type)
-		{
-			// I had already writen a class method for when events were implemented
-			// So just call that method.
-			this->EventCallbackGenisysNetwork(table_name, callback_event_type);
-		};
-
-	data_frame_2_->AddEventCallback(callback_func); // Add callback to the data frame object.
-
-
-
-
-
-	// Protocol Setup
-	protocol_ = std::make_shared<ProtocolGenisysSlave>();
-	if (!protocol_->AddDataFrame(genisys_slave_id_, false, data_frame_1_) || \
-		!protocol_->AddDataFrame(genisys_slave_id_, true, data_frame_2_) )
-	{
-		// Error: Data Frame Issue
-		wxLogMessage("cEvents::StartupGenisysNetwork: Protocol Setup Error");
+		wxLogMessage("Poll timeout must be a whole number from 0 to 4294967295 milliseconds.");
 		ShutdownGenisysNetwork();
 		return false;
+	}
+
+	protocol_ = std::make_shared<ProtocolGenisysSlave>();
+	protocol_->SetPollTimeout(static_cast<uint32_t>(poll_timeout_ms));
+	poll_tracking_enabled_ = poll_timeout_ms != 0;
+	protocol_->AddEventCallback([this](uint8_t id, std::string, ProtocolGenisysSlave::CALLBACKEVENT event)
+		{
+			master_connections_[id] = event == ProtocolGenisysSlave::CALLBACKEVENT::MASTER_CONNECTED;
+		});
+
+	for (const auto& slave : slaves_)
+	{
+		const auto name = "Slave " + std::to_string(slave.id);
+		auto indications = std::make_shared<DataFrame>(name + " Indications", slave.frameSize);
+		auto controls = std::make_shared<DataFrame>(name + " Controls", slave.frameSize);
+		if (!protocol_->AddDataFrame(static_cast<uint8_t>(slave.id), indications, controls))
+		{
+			wxLogMessage("Unable to register slave %d.", slave.id);
+			ShutdownGenisysNetwork();
+			return false;
+		}
+		protocol_->SetModeByteReturnValue(static_cast<uint8_t>(slave.id), slave.responseMode);
 	}
 
 	// Network/Serial Configuration
@@ -416,199 +451,137 @@ bool cEvents::StartupGenisysNetwork()
 
 void cEvents::ShutdownGenisysNetwork()
 {
-	wxLogMessage("cEvents::ShutdownGenisysNetwork: Shuting Down");
-
-	// Check If Thread Is Active
+	refresh_timer_.Stop();
 	if (network_thread_.joinable())
 	{
-		// Shutdown Thread
 		stop_thread_ = true;
 		network_thread_.join();
 		stop_thread_ = false;
 	}
 
-	if (network_ != nullptr)
+	if (network_)
 		network_->ShutdownServer();
-
-	if (data_frame_1_ != nullptr)
-		data_frame_1_.reset();
-	
-	if (data_frame_2_ != nullptr)
-		data_frame_2_.reset();
-	
-	if (protocol_ != nullptr)
-		protocol_.reset();
-
-	if (network_ != nullptr)
-		network_.reset();
-
-	bit_write_request_ = false;
-	byte_offset_ = -1;
-	bit_offset_ = -1;
-	bit_value_ = false;
-
+	network_.reset();
+	protocol_.reset();
+	master_connections_.clear();
+	snapshots_.clear();
+	edits_.clear();
 }
-
 
 void cEvents::RunningloopGenisysNetwork()
 {
-
-	static int loop_cnt = 0;
-
-	while (true)
+	while (!stop_thread_)
 	{
-
-		loop_cnt++;
-		//wxLogMessage("cEvents::RunningloopGenisysNetwork: Loop %d", loop_cnt);
-
-		
-		// Check If Thread Is Requested To Stop From GUI
-		if (stop_thread_)
+		std::vector<SlaveEdit> edits;
 		{
-			return;
+			std::lock_guard<std::mutex> lock(slave_state_mutex_);
+			edits.swap(edits_);
 		}
-
-
-		// Check If GUI Has Updated A Bit Value In The Indication Table
-		if (bit_write_request_)
+		for (const auto& edit : edits)
 		{
-			if (data_frame_1_->WriteBit(byte_offset_, bit_offset_, bit_value_))
+			const auto id = static_cast<uint8_t>(edit.slaveId);
+			if (edit.mode >= 0)
 			{
-
-				// Update The wxWidgets GUI On GUI Thread
-				int row = (int)byte_offset_;
-				int col = 7 - (int)bit_offset_;
-				bool val = (bool)bit_value_;
-				wxGetApp().CallAfter([this, row, col, val]()
-					{
-
-						wxGridCellCoords coord = wxGridCellCoords(row, col);
-						if (val)
-						{
-							this->m_grid3->SetCellValue(coord, wxString("1"));
-							this->m_grid3->SetCellBackgroundColour(coord.GetRow(), coord.GetCol(), *wxGREEN);
-						}
-						else
-						{
-							this->m_grid3->SetCellValue(coord, wxString("0"));
-							this->m_grid3->SetCellBackgroundColour(coord.GetRow(), coord.GetCol(), *wxRED);
-						}
-
-					});
-				
-			}
-			else
-			{
-				// Error: Bit Failed To Write
-				
+				protocol_->SetModeByteReturnValue(id, static_cast<uint8_t>(edit.mode));
+				continue;
 			}
 
-			// Reset Atomic Bits
-			byte_offset_ = -1;
-			bit_offset_ = -1;
-			bit_value_ = false;
-			bit_write_request_ = false;
-
+			ProtocolGenisysSlave::SlaveData data;
+			bool value = false;
+			if (protocol_->GetSlaveData(id, data) && data.indication_data_frame->ReadBit(edit.row, edit.bit, value))
+				data.indication_data_frame->WriteBit(edit.row, edit.bit, !value);
 		}
 
-
-
-		// Update Last Master IP & Responce Counter On GUI
-		// Note: I'm Using The Values From The Indication Data Frame.
-		// The Control & Indication Will Have The Exact Same Values Anyway.
-		std::string last_master_ip = data_frame_1_->GetLastMasterIp();
-		std::string responce_cnt = std::to_string(data_frame_1_->GetResponceCounter());
-		wxGetApp().CallAfter([this, last_master_ip, responce_cnt]()
-			{
-
-				m_staticTextLastMasterIp->SetLabel(last_master_ip);
-				m_staticTextResponceCounter->SetLabel(responce_cnt);
-
-			});
-
-
-
-		// Run Server Loop
-		// To Do: Make This Nonblocking
 		network_->ServerLoop();
 
+		// Publish copies keyed by slave ID. Only the network thread accesses live frames.
+		std::map<int, SlaveSnapshot> snapshots;
+		for (const auto& slave : slaves_)
+		{
+			ProtocolGenisysSlave::SlaveData data;
+			if (!protocol_->GetSlaveData(static_cast<uint8_t>(slave.id), data))
+				continue;
 
-
+			auto& snapshot = snapshots[slave.id];
+			data.indication_data_frame->ReadBytes(0, slave.frameSize, snapshot.indications);
+			data.control_data_frame->ReadBytes(0, slave.frameSize, snapshot.controls);
+			snapshot.master = data.last_master_device_to_poll_name;
+			snapshot.responses = data.responce_counter;
+			snapshot.connected = master_connections_[slave.id];
+			if (data.has_received_mode_byte)
+				snapshot.mode = wxString::Format("0x%02X", static_cast<unsigned int>(data.last_mode_byte_recived)).ToStdString();
+		}
+		{
+			std::lock_guard<std::mutex> lock(slave_state_mutex_);
+			snapshots_.swap(snapshots);
+		}
 		std::this_thread::sleep_for(50ms);
 	}
-
 }
 
-void cEvents::EventCallbackGenisysNetwork(std::string table_name, LSY::DataFrame::CALLBACKEVENT event_type)
+void cEvents::RefreshSlaveView()
 {
-	// This function should be mapped as an event call back to the data control frame.
-	// So the function should be called whenever the control frame is updated via the network.
-
-	if (event_type != LSY::DataFrame::CALLBACKEVENT::CONTROL_CHANGE)
+	const int selection = m_slaveList->GetSelection();
+	const bool running = network_thread_.joinable();
+	SlaveSnapshot selected;
 	{
-		// Error - All events other than control changes are not expected
-		return;
-	}
-
-	if (table_name != data_frame_2_->GetName())
-	{
-		// Error - Callback is mapped incorrectly
-		return;
-	}
-
-
-	// Update The Control Table In The GUI
-	// Note: Currently this is not effiencent.
-	// Would be better to detect the values that have change and only update the changes. 
-
-	for (int i = 0; i < data_frame_2_->GetNumBytes(); i++)
-	{
-
-		int row = i;
-		uint8_t byte_val = 0;
-		data_frame_2_->ReadByte(i, byte_val);
-
-		wxGetApp().CallAfter([this, row, byte_val]()
+		std::lock_guard<std::mutex> lock(slave_state_mutex_);
+		for (int i = 0; i < static_cast<int>(slaves_.size()); ++i)
+		{
+			const int id = slaves_[i].id;
+			const auto snapshot = snapshots_.find(id);
+			const bool connected = snapshot != snapshots_.end() && snapshot->second.connected;
+			wxString label = wxString::Format("Slave %d", id);
+			if (running)
+				label += !poll_tracking_enabled_ ? "  |  Tracking off" : connected ? "  |  Connected" : "  |  Disconnected";
+			if (m_slaveList->GetString(i) != label)
 			{
-
-				// Loop Through Columns In The Row
-				for (int j = 0; j < 8; j++)
-				{
-					int col = j;
-					int bit_offset = 7 - col;
-
-					// Extract the bit value from the byte
-					uint8_t mask = 1 << bit_offset;
-					uint8_t temp_byte = byte_val & mask;
-					temp_byte = temp_byte >> bit_offset;
-					bool bit_val = temp_byte;
-
-					// Update The Cell In The GUI
-					wxGridCellCoords coord = wxGridCellCoords(row, col);
-					if (bit_val)
-					{
-						this->m_grid31->SetCellValue(coord, wxString("1"));
-						this->m_grid31->SetCellBackgroundColour(coord.GetRow(), coord.GetCol(), *wxGREEN);
-					}
-					else
-					{
-						this->m_grid31->SetCellValue(coord, wxString("0"));
-						this->m_grid31->SetCellBackgroundColour(coord.GetRow(), coord.GetCol(), *wxRED);
-					}
-				}
-
-			});
-
+				m_slaveList->SetString(i, label);
+				m_slaveList->SetSelection(selection);
+			}
+			if (i == selection && snapshot != snapshots_.end())
+				selected = snapshot->second;
+		}
 	}
 
+	const int frameSize = slaves_[selection].frameSize;
+	auto updateGrid = [frameSize](wxGrid* grid, const std::vector<uint8_t>& bytes)
+	{
+		grid->BeginBatch();
+		const int rows = grid->GetNumberRows();
+		if (rows > frameSize)
+			grid->DeleteRows(frameSize, rows - frameSize);
+		if (rows < frameSize)
+			grid->AppendRows(frameSize - rows);
 
+		for (int row = 0; row < frameSize; ++row)
+		{
+			const auto rowLabel = wxString::Format("Byte %d", row);
+			if (grid->GetRowLabelValue(row) != rowLabel)
+				grid->SetRowLabelValue(row, rowLabel);
+			for (int col = 0; col < 8; ++col)
+			{
+				const bool available = row < static_cast<int>(bytes.size());
+				const bool set = available && (bytes[row] & (1 << (7 - col)));
+				const wxString value = available ? (set ? "1" : "0") : "";
+				if (grid->GetCellValue(row, col) != value)
+				{
+					grid->SetCellValue(row, col, value);
+					grid->SetCellBackgroundColour(row, col,
+						available ? (set ? *wxGREEN : *wxRED) : grid->GetDefaultCellBackgroundColour());
+				}
+			}
+		}
+		grid->EndBatch();
+	};
+	updateGrid(m_grid3, selected.indications);
+	updateGrid(m_grid31, selected.controls);
+	m_staticTextMasterStatus->SetLabel(running && !poll_tracking_enabled_ ? "Master tracking disabled"
+		: selected.connected ? "Master connected" : "Master disconnected");
+	m_staticTextLastMasterIp->SetLabel(selected.master.empty() ? wxString("--") : wxString(selected.master));
+	m_staticTextLastModeByte->SetLabel(selected.mode.empty() ? wxString("--") : wxString(selected.mode));
+	m_staticTextResponceCounter->SetLabel(wxString::Format("%llu", static_cast<unsigned long long>(selected.responses)));
 }
-
-
-
-
-
-
 
 bool LogDebug(const std::string& log_msg)
 {
@@ -655,5 +628,28 @@ bool LogError(const std::string& log_msg)
 	ss << ",ERROR," << log_msg << std::endl;
 
 	wxLogMessage(wxString(ss.str()));
+	return true;
+}
+
+bool cEvents::LogProto(const std::string& log_msg)
+{
+	bool write_failed = false;
+	{
+		std::lock_guard<std::mutex> lock(protocol_log_mutex_);
+		if (protocol_log_file_.IsOpened() &&
+			(protocol_log_file_.Write(log_msg.data(), log_msg.size()) != log_msg.size() ||
+				protocol_log_file_.Write("\r\n", 2) != 2 || !protocol_log_file_.Flush()))
+		{
+			protocol_log_file_.Close();
+			write_failed = true;
+		}
+	}
+	if (write_failed)
+		wxLogError("Unable to write the protocol log file.");
+
+	CallAfter([this, log_msg]()
+		{
+			protocol_logger->LogTextAtLevel(wxLOG_Message, wxString(log_msg));
+		});
 	return true;
 }
