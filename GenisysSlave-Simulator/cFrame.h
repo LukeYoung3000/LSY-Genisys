@@ -34,44 +34,30 @@ class cFrame : public wxFrame
 
 	protected:
 		wxPanel* m_panel1;
-		wxStaticText* m_staticText4;
+		wxBoxSizer* m_transportFields;
+		void ShowTransportSettings(int selection);
+
 		wxRadioBox* m_radioBox1;
-		wxStaticText* m_staticText2;
 		wxTextCtrl* m_textUDPrx;
-		wxStaticText* m_staticText3;
 		wxTextCtrl* m_textUDPtx;
-		wxStaticText* m_staticText5;
-		wxStaticText* m_staticText6;
 		wxTextCtrl* m_textSlaveID;
-		wxStaticText* m_staticText8;
-		wxStaticText* m_staticText9;
 		wxTextCtrl* m_textFrameSize;
 		wxTextCtrl* m_textPollTimeout;
-		wxStaticText* m_staticText10;
 		wxToggleButton* m_toggleStartStop;
-		wxStaticText* m_staticText101;
-		wxStaticText* m_staticText102;
 		wxStaticText* m_staticTextLastMasterIp;
 		wxStaticText* m_staticTextMasterStatus;
 		wxStaticText* m_staticTextLastModeByte;
 		wxTextCtrl* m_textModeByteReturn;
 		wxButton* m_buttonApplyModeByte;
-		wxStaticText* m_staticText1022;
 		wxStaticText* m_staticTextResponceCounter;
 		wxStaticText* m_staticText11;
 		wxGrid* m_grid3;
 		wxStaticText* m_staticText111;
 		wxGrid* m_grid31;
-		wxStaticText* m_staticTextSerialSettings;
-		wxStaticText* m_staticTextComPort;
 		wxComboBox* m_comboComPort;
-		wxStaticText* m_staticTextBaudRate;
 		wxComboBox* m_comboBaudRate;
-		wxStaticText* m_staticTextDataBits;
 		wxComboBox* m_comboDataBits;
-		wxStaticText* m_staticTextStopBits;
 		wxComboBox* m_comboStopBits;
-		wxStaticText* m_staticTextParity;
 		wxComboBox* m_comboParity;
 		wxMenuBar* m_menubar3;
 		wxMenu* MenuHelp;

@@ -97,30 +97,9 @@ void cEvents::ProtocolSelectionEvent(wxCommandEvent& event)
 {
 	int selection = m_radioBox1->GetSelection();
 
-	// 0 = UDP, 1 = TCP, 2 = Serial
-	bool enable_network = (selection == 0 || selection == 1);
-	bool enable_serial = (selection == 2);
+	ShowTransportSettings(selection);
 
-	// Enable/Disable UDP/TCP controls
-	m_staticText2->Enable(enable_network);
-	m_textUDPrx->Enable(enable_network);
-	m_staticText3->Enable(enable_network);
-	m_textUDPtx->Enable(enable_network && selection == 0);  // UDP TX port only for UDP
-
-	// Enable/Disable Serial controls
-	m_staticTextSerialSettings->Enable(enable_serial);
-	m_staticTextComPort->Enable(enable_serial);
-	m_comboComPort->Enable(enable_serial);
-	m_staticTextBaudRate->Enable(enable_serial);
-	m_comboBaudRate->Enable(enable_serial);
-	m_staticTextDataBits->Enable(enable_serial);
-	m_comboDataBits->Enable(enable_serial);
-	m_staticTextStopBits->Enable(enable_serial);
-	m_comboStopBits->Enable(enable_serial);
-	m_staticTextParity->Enable(enable_serial);
-	m_comboParity->Enable(enable_serial);
-
-	if (enable_serial)
+	if (selection == 2)
 	{
 		// Populate COM port dropdown with available ports
 		this->PopulateComPorts();
@@ -159,6 +138,7 @@ void cEvents::StartStopServerEvent(wxCommandEvent& event)
 
 		if (StartupGenisysNetwork())
 		{
+			m_toggleStartStop->SetLabel("Stop");
 			// Enable User Controls On The Grid
 			m_grid3->Enable(true);
 			m_grid31->Enable(true);
@@ -207,6 +187,7 @@ void cEvents::StartStopServerEvent(wxCommandEvent& event)
 	else
 	{
 		wxLogMessage("cEvents::StartStopServerEvent: Stop Button Clicked");
+		m_toggleStartStop->SetLabel("Start");
 
 		// Disable User Controls On The Grid
 		m_grid3->Enable(false);

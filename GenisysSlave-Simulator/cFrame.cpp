@@ -8,177 +8,140 @@
 
 cFrame::cFrame( wxWindow* parent, wxWindowID id, const wxString& title, const wxPoint& pos, const wxSize& size, long style ) : wxFrame( parent, id, title, pos, size, style )
 {
-	this->SetSizeHints( wxSize( 1000, 934 ), wxDefaultSize );
-	this->SetForegroundColour( wxSystemSettings::GetColour( wxSYS_COLOUR_ACTIVEBORDER ) );
+	m_panel1 = new wxPanel(this);
+	m_panel1->SetBackgroundColour(wxColour(237, 242, 247));
+	const int gap = FromDIP(8);
+	auto* layout = new wxBoxSizer(wxVERTICAL);
+	m_panel1->SetSizer(layout);
 
-	wxBoxSizer* bSizer1;
-	bSizer1 = new wxBoxSizer( wxVERTICAL );
+	// Keep the server action and master session status visible above the workspace.
+	auto* header = new wxPanel(m_panel1);
+	header->SetBackgroundColour(wxColour(23, 40, 61));
+	auto* headerRow = new wxBoxSizer(wxHORIZONTAL);
+	header->SetSizer(headerRow);
+	auto* titleLabel = new wxStaticText(header, wxID_ANY, "Genisys Slave Simulator");
+	titleLabel->SetFont(titleLabel->GetFont().Bold().Larger());
+	titleLabel->SetForegroundColour(*wxWHITE);
+	headerRow->Add(titleLabel, 1, wxALIGN_CENTER_VERTICAL | wxALL, gap);
+	m_toggleStartStop = new wxToggleButton(header, wxID_ANY, "Start");
+	headerRow->Add(m_toggleStartStop, 0, wxALIGN_CENTER_VERTICAL | wxALL, gap);
+	m_staticTextMasterStatus = new wxStaticText(header, wxID_ANY, "Master disconnected");
+	m_staticTextMasterStatus->SetForegroundColour(*wxWHITE);
+	m_staticTextMasterStatus->SetMinSize(FromDIP(wxSize(175, -1)));
+	headerRow->Add(m_staticTextMasterStatus, 0, wxALIGN_CENTER_VERTICAL | wxALL, gap);
+	layout->Add(header, 0, wxEXPAND);
 
-	wxBoxSizer* bSizer8;
-	bSizer8 = new wxBoxSizer( wxVERTICAL );
+	auto* workspace = new wxBoxSizer(wxHORIZONTAL);
+	layout->Add(workspace, 1, wxEXPAND | wxALL, gap);
+	auto* sidebar = new wxPanel(m_panel1);
+	sidebar->SetBackgroundColour(*wxWHITE);
+	auto* sidebarLayout = new wxBoxSizer(wxVERTICAL);
+	sidebar->SetSizer(sidebarLayout);
+	auto* setup = new wxBoxSizer(wxVERTICAL);
+	sidebarLayout->Add(setup, 0, wxEXPAND | wxALL, gap);
+	workspace->Add(sidebar, 0, wxEXPAND | wxRIGHT, gap);
 
-	m_panel1 = new wxPanel( this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxTAB_TRAVERSAL );
-	wxBoxSizer* bSizer9;
-	bSizer9 = new wxBoxSizer( wxHORIZONTAL );
+	auto addHeading = [sidebar, setup, gap](const wxString& text)
+	{
+		auto* heading = new wxStaticText(sidebar, wxID_ANY, text);
+		heading->SetFont(heading->GetFont().Bold());
+		setup->Add(heading, 0, wxTOP | wxBOTTOM, gap);
+	};
+	auto addField = [sidebar, gap](wxFlexGridSizer* fields, const wxString& name, wxWindow* input)
+	{
+		fields->Add(new wxStaticText(sidebar, wxID_ANY, name), 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, gap);
+		fields->Add(input, 0, wxEXPAND);
+	};
 
-	wxBoxSizer* bSizer6;
-	bSizer6 = new wxBoxSizer( wxHORIZONTAL );
+	addHeading("Connection setup");
+	const wxString protocols[] = { "UDP", "TCP", "Serial" };
+	m_radioBox1 = new wxRadioBox(sidebar, wxID_ANY, "Protocol", wxDefaultPosition, wxDefaultSize,
+		WXSIZEOF(protocols), protocols, WXSIZEOF(protocols), wxRA_SPECIFY_COLS);
+	setup->Add(m_radioBox1, 0, wxEXPAND | wxBOTTOM, gap);
 
-	wxBoxSizer* bSizer7;
-	bSizer7 = new wxBoxSizer( wxVERTICAL );
+	m_transportFields = new wxBoxSizer(wxVERTICAL);
+	auto* listenRow = new wxFlexGridSizer(2, gap / 2, gap);
+	listenRow->AddGrowableCol(1);
+	m_textUDPrx = new wxTextCtrl(sidebar, wxID_ANY);
+	addField(listenRow, "Listen port", m_textUDPrx);
+	m_transportFields->Add(listenRow, 0, wxEXPAND | wxBOTTOM, gap / 2);
 
-	m_staticText4 = new wxStaticText( m_panel1, wxID_ANY, wxT("Port Settings:"), wxDefaultPosition, wxDefaultSize, 0 );
-	m_staticText4->Wrap( -1 );
-	bSizer7->Add( m_staticText4, 0, wxALIGN_CENTER|wxALL, 5 );
+	auto* replyRow = new wxFlexGridSizer(2, gap / 2, gap);
+	replyRow->AddGrowableCol(1);
+	m_textUDPtx = new wxTextCtrl(sidebar, wxID_ANY);
+	addField(replyRow, "Reply port", m_textUDPtx);
+	m_transportFields->Add(replyRow, 0, wxEXPAND);
 
-	wxString m_radioBox1Choices[] = { wxT("UDP"), wxT("TCP"), wxT("Serial") };
-	int m_radioBox1NChoices = sizeof( m_radioBox1Choices ) / sizeof( wxString );
-	m_radioBox1 = new wxRadioBox( m_panel1, wxID_ANY, wxT("Protocol"), wxDefaultPosition, wxDefaultSize, m_radioBox1NChoices, m_radioBox1Choices, 1, wxRA_SPECIFY_COLS );
-	m_radioBox1->SetSelection( 0 );
-	bSizer7->Add( m_radioBox1, 0, wxALIGN_CENTER|wxALL, 5 );
+	auto* serialFields = new wxFlexGridSizer(2, gap / 2, gap);
+	serialFields->AddGrowableCol(1);
+	const wxString baudRates[] = { "9600", "19200", "38400", "57600", "115200" };
+	const wxString dataBits[] = { "5", "6", "7", "8" };
+	const wxString stopBits[] = { "1", "1.5", "2" };
+	const wxString parity[] = { "None (N)", "Even (E)", "Odd (O)" };
+	m_comboComPort = new wxComboBox(sidebar, wxID_ANY, wxEmptyString,
+		wxDefaultPosition, wxDefaultSize, 0, nullptr, wxCB_READONLY);
+	m_comboBaudRate = new wxComboBox(sidebar, wxID_ANY, wxEmptyString,
+		wxDefaultPosition, wxDefaultSize, WXSIZEOF(baudRates), baudRates, wxCB_READONLY);
+	m_comboDataBits = new wxComboBox(sidebar, wxID_ANY, wxEmptyString,
+		wxDefaultPosition, wxDefaultSize, WXSIZEOF(dataBits), dataBits, wxCB_READONLY);
+	m_comboStopBits = new wxComboBox(sidebar, wxID_ANY, wxEmptyString,
+		wxDefaultPosition, wxDefaultSize, WXSIZEOF(stopBits), stopBits, wxCB_READONLY);
+	m_comboParity = new wxComboBox(sidebar, wxID_ANY, wxEmptyString,
+		wxDefaultPosition, wxDefaultSize, WXSIZEOF(parity), parity, wxCB_READONLY);
+	m_comboBaudRate->SetSelection(0);
+	m_comboDataBits->SetSelection(3);
+	m_comboStopBits->SetSelection(0);
+	m_comboParity->SetSelection(0);
+	addField(serialFields, "COM port", m_comboComPort);
+	addField(serialFields, "Baud rate", m_comboBaudRate);
+	addField(serialFields, "Data bits", m_comboDataBits);
+	addField(serialFields, "Stop bits", m_comboStopBits);
+	addField(serialFields, "Parity", m_comboParity);
+	m_transportFields->Add(serialFields, 0, wxEXPAND);
+	setup->Add(m_transportFields, 0, wxEXPAND | wxBOTTOM, gap);
 
-	m_staticText2 = new wxStaticText( m_panel1, wxID_ANY, wxT("Receiving (Listening)"), wxDefaultPosition, wxDefaultSize, 0 );
-	m_staticText2->Wrap( -1 );
-	bSizer7->Add( m_staticText2, 0, wxALIGN_CENTER|wxALL, 5 );
+	addHeading("Genisys settings");
+	auto* genisysFields = new wxFlexGridSizer(2, gap / 2, gap);
+	genisysFields->AddGrowableCol(1);
+	m_textSlaveID = new wxTextCtrl(sidebar, wxID_ANY);
+	m_textFrameSize = new wxTextCtrl(sidebar, wxID_ANY);
+	m_textPollTimeout = new wxTextCtrl(sidebar, wxID_ANY, "5000");
+	m_textPollTimeout->SetToolTip("Maximum interval between Genisys polls. Enter 0 to disable.");
+	addField(genisysFields, "Slave ID", m_textSlaveID);
+	addField(genisysFields, "Frame size (bytes)", m_textFrameSize);
+	addField(genisysFields, "Poll timeout (ms)", m_textPollTimeout);
+	setup->Add(genisysFields, 0, wxEXPAND | wxBOTTOM, gap);
+	setup->Add(new wxStaticText(sidebar, wxID_ANY, "0 disables poll tracking"), 0, wxBOTTOM, gap);
 
-	m_textUDPrx = new wxTextCtrl( m_panel1, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
-	bSizer7->Add( m_textUDPrx, 0, wxALIGN_CENTER|wxALL, 5 );
+	addHeading("Response mode byte");
+	auto* modeReturn = new wxBoxSizer(wxHORIZONTAL);
+	m_textModeByteReturn = new wxTextCtrl(sidebar, wxID_ANY, "0x04");
+	m_buttonApplyModeByte = new wxButton(sidebar, wxID_ANY, "Apply");
+	modeReturn->Add(m_textModeByteReturn, 1, wxRIGHT, gap);
+	modeReturn->Add(m_buttonApplyModeByte);
+	setup->Add(modeReturn, 0, wxEXPAND);
 
-	m_staticText3 = new wxStaticText( m_panel1, wxID_ANY, wxT("Transmitting (UDP Only)"), wxDefaultPosition, wxDefaultSize, 0 );
-	m_staticText3->Wrap( -1 );
-	bSizer7->Add( m_staticText3, 0, wxALIGN_CENTER|wxALL, 5 );
+	// Let the grids fill the workspace while the diagnostics stay pinned below them.
+	auto* footer = new wxPanel(m_panel1);
+	footer->SetBackgroundColour(*wxWHITE);
+	auto* diagnostics = new wxBoxSizer(wxHORIZONTAL);
+	footer->SetSizer(diagnostics);
+	auto addDiagnostic = [footer, diagnostics, gap](const wxString& label, const wxString& initial, int width)
+	{
+		diagnostics->Add(new wxStaticText(footer, wxID_ANY, label), 0, wxALIGN_CENTER_VERTICAL | wxALL, gap);
+		auto* value = new wxStaticText(footer, wxID_ANY, initial);
+		value->SetMinSize(footer->FromDIP(wxSize(width, -1)));
+		diagnostics->Add(value, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, gap);
+		return value;
+	};
+	m_staticTextLastMasterIp = addDiagnostic("Last master", "--", 126);
+	m_staticTextLastModeByte = addDiagnostic("Last received mode byte", "--", 44);
+	m_staticTextResponceCounter = addDiagnostic("Responses", "0", 150);
+	layout->Add(footer, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, gap);
 
-	m_textUDPtx = new wxTextCtrl( m_panel1, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
-	bSizer7->Add( m_textUDPtx, 0, wxALIGN_CENTER|wxALL, 5 );
-
-	m_staticText5 = new wxStaticText( m_panel1, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
-	m_staticText5->Wrap( -1 );
-	bSizer7->Add( m_staticText5, 0, wxALIGN_CENTER|wxALL, 5 );
-
-	m_staticTextSerialSettings = new wxStaticText( m_panel1, wxID_ANY, wxT("Serial Settings:"), wxDefaultPosition, wxDefaultSize, 0 );
-	m_staticTextSerialSettings->Wrap( -1 );
-	bSizer7->Add( m_staticTextSerialSettings, 0, wxALIGN_CENTER|wxALL, 2 );
-
-	m_staticTextComPort = new wxStaticText( m_panel1, wxID_ANY, wxT("COM Port"), wxDefaultPosition, wxDefaultSize, 0 );
-	m_staticTextComPort->Wrap( -1 );
-	bSizer7->Add( m_staticTextComPort, 0, wxALIGN_CENTER|wxALL, 2 );
-
-	m_comboComPort = new wxComboBox( m_panel1, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0, NULL, wxCB_READONLY );
-	bSizer7->Add( m_comboComPort, 0, wxALIGN_CENTER|wxALL, 2 );
-
-	m_staticTextBaudRate = new wxStaticText( m_panel1, wxID_ANY, wxT("Baud Rate"), wxDefaultPosition, wxDefaultSize, 0 );
-	m_staticTextBaudRate->Wrap( -1 );
-	bSizer7->Add( m_staticTextBaudRate, 0, wxALIGN_CENTER|wxALL, 2 );
-
-	wxString m_comboBaudRateChoices[] = { wxT("9600"), wxT("19200"), wxT("38400"), wxT("57600"), wxT("115200") };
-	int m_comboBaudRateNChoices = sizeof( m_comboBaudRateChoices ) / sizeof( wxString );
-	m_comboBaudRate = new wxComboBox( m_panel1, wxID_ANY, wxT("9600"), wxDefaultPosition, wxDefaultSize, m_comboBaudRateNChoices, m_comboBaudRateChoices, wxCB_READONLY );
-	m_comboBaudRate->SetSelection( 0 );
-	bSizer7->Add( m_comboBaudRate, 0, wxALIGN_CENTER|wxALL, 2 );
-
-	m_staticTextDataBits = new wxStaticText( m_panel1, wxID_ANY, wxT("Data Bits"), wxDefaultPosition, wxDefaultSize, 0 );
-	m_staticTextDataBits->Wrap( -1 );
-	bSizer7->Add( m_staticTextDataBits, 0, wxALIGN_CENTER|wxALL, 2 );
-
-	wxString m_comboDataBitsChoices[] = { wxT("5"), wxT("6"), wxT("7"), wxT("8") };
-	int m_comboDataBitsNChoices = sizeof( m_comboDataBitsChoices ) / sizeof( wxString );
-	m_comboDataBits = new wxComboBox( m_panel1, wxID_ANY, wxT("8"), wxDefaultPosition, wxDefaultSize, m_comboDataBitsNChoices, m_comboDataBitsChoices, wxCB_READONLY );
-	m_comboDataBits->SetSelection( 3 );
-	bSizer7->Add( m_comboDataBits, 0, wxALIGN_CENTER|wxALL, 2 );
-
-	m_staticTextStopBits = new wxStaticText( m_panel1, wxID_ANY, wxT("Stop Bits"), wxDefaultPosition, wxDefaultSize, 0 );
-	m_staticTextStopBits->Wrap( -1 );
-	bSizer7->Add( m_staticTextStopBits, 0, wxALIGN_CENTER|wxALL, 2 );
-
-	wxString m_comboStopBitsChoices[] = { wxT("1"), wxT("1.5"), wxT("2") };
-	int m_comboStopBitsNChoices = sizeof( m_comboStopBitsChoices ) / sizeof( wxString );
-	m_comboStopBits = new wxComboBox( m_panel1, wxID_ANY, wxT("1"), wxDefaultPosition, wxDefaultSize, m_comboStopBitsNChoices, m_comboStopBitsChoices, wxCB_READONLY );
-	m_comboStopBits->SetSelection( 0 );
-	bSizer7->Add( m_comboStopBits, 0, wxALIGN_CENTER|wxALL, 2 );
-
-	m_staticTextParity = new wxStaticText( m_panel1, wxID_ANY, wxT("Parity"), wxDefaultPosition, wxDefaultSize, 0 );
-	m_staticTextParity->Wrap( -1 );
-	bSizer7->Add( m_staticTextParity, 0, wxALIGN_CENTER|wxALL, 2 );
-
-	wxString m_comboParityChoices[] = { wxT("None (N)"), wxT("Even (E)"), wxT("Odd (O)") };
-	int m_comboParityNChoices = sizeof( m_comboParityChoices ) / sizeof( wxString );
-	m_comboParity = new wxComboBox( m_panel1, wxID_ANY, wxT("None (N)"), wxDefaultPosition, wxDefaultSize, m_comboParityNChoices, m_comboParityChoices, wxCB_READONLY );
-	m_comboParity->SetSelection( 0 );
-	bSizer7->Add( m_comboParity, 0, wxALIGN_CENTER|wxALL, 2 );
-	//bSizer7->Add( m_textParity, 0, wxALIGN_CENTER|wxALL, 2 );
-
-	m_staticText6 = new wxStaticText( m_panel1, wxID_ANY, wxT("Slave ID"), wxDefaultPosition, wxDefaultSize, 0 );
-	m_staticText6->Wrap( -1 );
-	bSizer7->Add( m_staticText6, 0, wxALIGN_CENTER|wxALL, 5 );
-
-	m_textSlaveID = new wxTextCtrl( m_panel1, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
-	bSizer7->Add( m_textSlaveID, 0, wxALIGN_CENTER|wxALL, 5 );
-
-	m_staticText8 = new wxStaticText( m_panel1, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
-	m_staticText8->Wrap( -1 );
-	bSizer7->Add( m_staticText8, 0, wxALIGN_CENTER|wxALL, 5 );
-
-	m_staticText9 = new wxStaticText( m_panel1, wxID_ANY, wxT("Frame Size [Bytes]"), wxDefaultPosition, wxDefaultSize, 0 );
-	m_staticText9->Wrap( -1 );
-	bSizer7->Add( m_staticText9, 0, wxALIGN_CENTER|wxALL, 5 );
-
-	m_textFrameSize = new wxTextCtrl( m_panel1, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
-	bSizer7->Add( m_textFrameSize, 0, wxALIGN_CENTER|wxALL, 5 );
-
-	bSizer7->Add( new wxStaticText( m_panel1, wxID_ANY, wxT("Poll Timeout [ms]"), wxDefaultPosition, wxDefaultSize, 0 ), 0, wxALIGN_CENTER|wxALL, 5 );
-	m_textPollTimeout = new wxTextCtrl( m_panel1, wxID_ANY, wxT("5000"), wxDefaultPosition, wxDefaultSize, 0 );
-	m_textPollTimeout->SetToolTip( wxT("Maximum interval between Genisys polls. Enter 0 to disable.") );
-	bSizer7->Add( m_textPollTimeout, 0, wxALIGN_CENTER|wxALL, 5 );
-
-	m_staticText10 = new wxStaticText( m_panel1, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
-	m_staticText10->Wrap( -1 );
-	bSizer7->Add( m_staticText10, 0, wxALIGN_CENTER|wxALL, 5 );
-
-	m_toggleStartStop = new wxToggleButton( m_panel1, wxID_ANY, wxT("Start/Stop"), wxDefaultPosition, wxDefaultSize, 0 );
-	bSizer7->Add( m_toggleStartStop, 0, wxALIGN_CENTER|wxALL, 5 );
-
-	m_staticText101 = new wxStaticText( m_panel1, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
-	m_staticText101->Wrap( -1 );
-	bSizer7->Add( m_staticText101, 0, wxALIGN_CENTER_HORIZONTAL|wxALL, 5 );
-
-	m_staticTextMasterStatus = new wxStaticText( m_panel1, wxID_ANY, wxT("Master disconnected"), wxDefaultPosition, wxDefaultSize, 0 );
-	bSizer7->Add( m_staticTextMasterStatus, 0, wxALL, 5 );
-
-	m_staticText102 = new wxStaticText( m_panel1, wxID_ANY, wxT("Last Master IP:"), wxDefaultPosition, wxDefaultSize, 0 );
-	m_staticText102->Wrap( -1 );
-	bSizer7->Add( m_staticText102, 0, wxALL, 5 );
-
-	m_staticTextLastMasterIp = new wxStaticText( m_panel1, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
-	m_staticTextLastMasterIp->Wrap( -1 );
-	bSizer7->Add( m_staticTextLastMasterIp, 0, wxALL, 5 );
-
-	wxBoxSizer* modeReceivedSizer = new wxBoxSizer( wxHORIZONTAL );
-	modeReceivedSizer->Add( new wxStaticText( m_panel1, wxID_ANY, wxT("Last Mode Byte:"), wxDefaultPosition, wxDefaultSize, 0 ), 0, wxALIGN_CENTER_VERTICAL|wxRIGHT, 5 );
-	m_staticTextLastModeByte = new wxStaticText( m_panel1, wxID_ANY, wxT("--"), wxDefaultPosition, wxDefaultSize, 0 );
-	modeReceivedSizer->Add( m_staticTextLastModeByte, 0, wxALIGN_CENTER_VERTICAL, 0 );
-	bSizer7->Add( modeReceivedSizer, 0, wxALL, 5 );
-
-	bSizer7->Add( new wxStaticText( m_panel1, wxID_ANY, wxT("Mode Byte Return (hex):"), wxDefaultPosition, wxDefaultSize, 0 ), 0, wxALL, 5 );
-	wxBoxSizer* modeReturnSizer = new wxBoxSizer( wxHORIZONTAL );
-	m_textModeByteReturn = new wxTextCtrl( m_panel1, wxID_ANY, wxT("0x04"), wxDefaultPosition, wxSize( 65, -1 ), 0 );
-	modeReturnSizer->Add( m_textModeByteReturn, 0, wxRIGHT, 5 );
-	m_buttonApplyModeByte = new wxButton( m_panel1, wxID_ANY, wxT("Apply"), wxDefaultPosition, wxDefaultSize, 0 );
-	modeReturnSizer->Add( m_buttonApplyModeByte, 0, 0, 0 );
-	bSizer7->Add( modeReturnSizer, 0, wxALL, 5 );
-
-	m_staticText1022 = new wxStaticText( m_panel1, wxID_ANY, wxT("Responce Counter:"), wxDefaultPosition, wxDefaultSize, 0 );
-	m_staticText1022->Wrap( -1 );
-	bSizer7->Add( m_staticText1022, 0, wxALL, 5 );
-
-	m_staticTextResponceCounter = new wxStaticText( m_panel1, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
-	m_staticTextResponceCounter->Wrap( -1 );
-	bSizer7->Add( m_staticTextResponceCounter, 0, wxALL, 5 );
-
-
-	bSizer6->Add( bSizer7, 1, wxEXPAND, 0 );
-
-
-	bSizer9->Add( bSizer6, 0, wxEXPAND, 0 );
+	auto* frameLayout = new wxBoxSizer(wxVERTICAL);
+	frameLayout->Add(m_panel1, 1, wxEXPAND);
+	SetSizer(frameLayout);
 
 	wxBoxSizer* bSizer4;
 	bSizer4 = new wxBoxSizer( wxVERTICAL );
@@ -187,13 +150,13 @@ cFrame::cFrame( wxWindow* parent, wxWindowID id, const wxString& title, const wx
 	m_staticText11->Wrap( -1 );
 	bSizer4->Add( m_staticText11, 0, wxALIGN_CENTER_HORIZONTAL|wxALL, 5 );
 
-	m_grid3 = new wxGrid( m_panel1, wxID_ANY, wxDefaultPosition, wxSize( 340,-1 ), wxVSCROLL );
+	m_grid3 = new wxGrid( m_panel1, wxID_ANY, wxDefaultPosition, FromDIP(wxSize(340, 240)), wxVSCROLL );
 
 	// Grid
 	m_grid3->CreateGrid( 125, 8 );
 	m_grid3->EnableEditing( false );
 	m_grid3->EnableGridLines( true );
-	m_grid3->SetGridLineColour( wxSystemSettings::GetColour( wxSYS_COLOUR_ACTIVECAPTION ) );
+	m_grid3->SetGridLineColour( wxColour(223, 231, 240) );
 	m_grid3->EnableDragGridSize( false );
 	m_grid3->SetMargins( 0, 0 );
 
@@ -354,10 +317,10 @@ cFrame::cFrame( wxWindow* parent, wxWindowID id, const wxString& title, const wx
 	m_grid3->SetDefaultCellAlignment( wxALIGN_CENTER, wxALIGN_CENTER );
 	m_grid3->Enable( false );
 
-	bSizer4->Add( m_grid3, 0, wxALL, 5 );
+	bSizer4->Add( m_grid3, 1, wxEXPAND | wxALL, 5 );
 
 
-	bSizer9->Add( bSizer4, 0, wxEXPAND, 5 );
+	workspace->Add( bSizer4, 1, wxEXPAND | wxRIGHT, gap );
 
 	wxBoxSizer* bSizer81;
 	bSizer81 = new wxBoxSizer( wxVERTICAL );
@@ -366,13 +329,13 @@ cFrame::cFrame( wxWindow* parent, wxWindowID id, const wxString& title, const wx
 	m_staticText111->Wrap( -1 );
 	bSizer81->Add( m_staticText111, 0, wxALIGN_CENTER_HORIZONTAL|wxALL, 5 );
 
-	m_grid31 = new wxGrid( m_panel1, wxID_ANY, wxDefaultPosition, wxSize( 340,-1 ), wxVSCROLL );
+	m_grid31 = new wxGrid( m_panel1, wxID_ANY, wxDefaultPosition, FromDIP(wxSize(340, 240)), wxVSCROLL );
 
 	// Grid
 	m_grid31->CreateGrid( 125, 8 );
 	m_grid31->EnableEditing( false );
 	m_grid31->EnableGridLines( true );
-	m_grid31->SetGridLineColour( wxSystemSettings::GetColour( wxSYS_COLOUR_ACTIVECAPTION ) );
+	m_grid31->SetGridLineColour( wxColour(223, 231, 240) );
 	m_grid31->EnableDragGridSize( false );
 	m_grid31->SetMargins( 0, 0 );
 
@@ -533,23 +496,12 @@ cFrame::cFrame( wxWindow* parent, wxWindowID id, const wxString& title, const wx
 	m_grid31->SetDefaultCellAlignment( wxALIGN_CENTER, wxALIGN_CENTER );
 	m_grid31->Enable( false );
 
-	bSizer81->Add( m_grid31, 0, wxALL, 5 );
+	bSizer81->Add( m_grid31, 1, wxEXPAND | wxALL, 5 );
 
 
-	bSizer9->Add( bSizer81, 0, wxEXPAND, 5 );
+	workspace->Add( bSizer81, 1, wxEXPAND );
 
 
-	m_panel1->SetSizer( bSizer9 );
-	m_panel1->Layout();
-	bSizer9->Fit( m_panel1 );
-	bSizer8->Add( m_panel1, 1, wxEXPAND | wxALL, 5 );
-
-
-	bSizer1->Add( bSizer8, 1, wxEXPAND, 5 );
-
-
-	this->SetSizer( bSizer1 );
-	this->Layout();
 	m_menubar3 = new wxMenuBar( 0 );
 	MenuHelp = new wxMenu();
 	wxMenuItem* MenuHelpLog;
@@ -568,24 +520,20 @@ cFrame::cFrame( wxWindow* parent, wxWindowID id, const wxString& title, const wx
 
 	this->SetMenuBar( m_menubar3 );
 
+	// Size for the tallest configuration so switching transports does not resize the frame.
+	ShowTransportSettings(2);
+	frameLayout->SetSizeHints(this);
+	wxSize initialSize = FromDIP(wxSize(1000, 740));
+	initialSize.IncTo(GetMinSize());
+	SetSize(initialSize);
+	ShowTransportSettings(0);
+	Layout();
+
 
 	this->Centre( wxBOTH );
 
 	// Populate COM port dropdown with available ports
 	this->PopulateComPorts();
-
-	// Disable serial controls by default (UDP is selected initially)
-	m_staticTextSerialSettings->Enable( false );
-	m_staticTextComPort->Enable( false );
-	m_comboComPort->Enable( false );
-	m_staticTextBaudRate->Enable( false );
-	m_comboBaudRate->Enable( false );
-	m_staticTextDataBits->Enable( false );
-	m_comboDataBits->Enable( false );
-	m_staticTextStopBits->Enable( false );
-	m_comboStopBits->Enable( false );
-	m_staticTextParity->Enable( false );
-	m_comboParity->Enable( false );
 
 	// Connect Events
 	this->Connect( wxEVT_CLOSE_WINDOW, wxCloseEventHandler( cFrame::TopLevelWindowCloseEvent ) );
@@ -629,6 +577,15 @@ void cFrame::PopulateComPorts()
 	// Set default selection if any ports are available
 	if (m_comboComPort->GetCount() > 0)
 		m_comboComPort->SetSelection(0);
+}
+
+void cFrame::ShowTransportSettings(int selection)
+{
+	// The transport sizer contains the listen, reply and serial field groups in that order.
+	m_transportFields->Show(static_cast<size_t>(0), selection != 2);
+	m_transportFields->Show(static_cast<size_t>(1), selection == 0);
+	m_transportFields->Show(static_cast<size_t>(2), selection == 2);
+	m_panel1->Layout();
 }
 
 cFrame::~cFrame()
