@@ -79,4 +79,4 @@ As of GenisysSlave-Simulator 0.4.0.8 AI tools (Github Copilot) will be used for 
 
 
 <!-- MARKDOWN LINKS & IMAGES -->
-[product-screenshot]: docs/screenshot.PNG
+[product-screenshot]: docs/Genisys-Slave-Simulator-App-0.5.0.9-Screenshot.PNG
