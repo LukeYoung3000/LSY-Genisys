@@ -125,6 +125,11 @@ cFrame::cFrame( wxWindow* parent, wxWindowID id, const wxString& title, const wx
 	m_textFrameSize = new wxTextCtrl( m_panel1, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
 	bSizer7->Add( m_textFrameSize, 0, wxALIGN_CENTER|wxALL, 5 );
 
+	bSizer7->Add( new wxStaticText( m_panel1, wxID_ANY, wxT("Poll Timeout [ms]"), wxDefaultPosition, wxDefaultSize, 0 ), 0, wxALIGN_CENTER|wxALL, 5 );
+	m_textPollTimeout = new wxTextCtrl( m_panel1, wxID_ANY, wxT("5000"), wxDefaultPosition, wxDefaultSize, 0 );
+	m_textPollTimeout->SetToolTip( wxT("Maximum interval between Genisys polls. Enter 0 to disable.") );
+	bSizer7->Add( m_textPollTimeout, 0, wxALIGN_CENTER|wxALL, 5 );
+
 	m_staticText10 = new wxStaticText( m_panel1, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticText10->Wrap( -1 );
 	bSizer7->Add( m_staticText10, 0, wxALIGN_CENTER|wxALL, 5 );
@@ -135,6 +140,9 @@ cFrame::cFrame( wxWindow* parent, wxWindowID id, const wxString& title, const wx
 	m_staticText101 = new wxStaticText( m_panel1, wxID_ANY, wxEmptyString, wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticText101->Wrap( -1 );
 	bSizer7->Add( m_staticText101, 0, wxALIGN_CENTER_HORIZONTAL|wxALL, 5 );
+
+	m_staticTextMasterStatus = new wxStaticText( m_panel1, wxID_ANY, wxT("Master disconnected"), wxDefaultPosition, wxDefaultSize, 0 );
+	bSizer7->Add( m_staticTextMasterStatus, 0, wxALL, 5 );
 
 	m_staticText102 = new wxStaticText( m_panel1, wxID_ANY, wxT("Last Master IP:"), wxDefaultPosition, wxDefaultSize, 0 );
 	m_staticText102->Wrap( -1 );

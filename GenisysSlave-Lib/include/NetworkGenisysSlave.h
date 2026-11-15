@@ -71,6 +71,7 @@ namespace LSY
 		bool is_wsa_started_;
 		WSADATA wsa_data;
 		SOCKET server_socket_;
+		sockaddr_in tcp_peer_addr_{};
 		SOCKET client_socket_;		// For TCP use only
 
 

@@ -109,9 +109,57 @@ namespace LSY
 
 
 
+	bool ProtocolGenisysSlave::AddEventCallback(const EventCallback& func)
+	{
+		// Keep a copy so the caller can release its callback object after registration.
+		callback_ = func;
+		return true;
+	}
+
+	void ProtocolGenisysSlave::SetPollTimeout(uint32_t timeout_ms)
+	{
+		poll_timeout_ = std::chrono::milliseconds(timeout_ms);
+		if (timeout_ms == 0)
+			EndPollSessions();
+	}
+
+	void ProtocolGenisysSlave::DisconnectMaster(SlaveData& slave)
+	{
+		if (!slave.master_connected)
+			return;
+
+		// Clear the state before notifying so each session reports one disconnect.
+		slave.master_connected = false;
+		if (callback_)
+			callback_(slave.slave_id, slave.poll_master, CALLBACKEVENT::MASTER_DISCONNECTED);
+	}
+
+	void ProtocolGenisysSlave::EndPollSessions()
+	{
+		for (auto& entry : slave_data)
+			DisconnectMaster(entry.second);
+	}
+
+	void ProtocolGenisysSlave::CheckPollTimeouts()
+	{
+		if (poll_timeout_ == std::chrono::milliseconds::zero())
+			return;
+
+		// Use one monotonic timestamp for all slave IDs in this pass.
+		const auto now = std::chrono::steady_clock::now();
+		for (auto& entry : slave_data)
+		{
+			auto& slave = entry.second;
+			if (slave.master_connected && now - slave.last_poll >= poll_timeout_)
+				DisconnectMaster(slave);
+		}
+	}
+
 	bool ProtocolGenisysSlave::ProcessMessages(std::vector<uint8_t> & data_buffer, std::string master_device)
 	{
 
+		// Expire sessions before accepting a returning master's poll.
+		CheckPollTimeouts();
 		if (!SeperateMessages(data_buffer))
 		{
 			return false;
@@ -216,6 +264,14 @@ namespace LSY
 		}
 
 
+		const bool track_polls = poll_timeout_ != std::chrono::milliseconds::zero();
+		// Only the standard and secure poll lengths qualify for poll tracking.
+		if (track_polls && msg_type == GEN_MSG_TYPE_POLL &&
+			gen_msg_buffer.size() != 3 && gen_msg_buffer.size() != 5)
+		{
+			return false;
+		}
+
 		// Increment Received Message Counter For This Slave ID
 		slave_data[slave_address_from_master].recevied_counter++;
 
@@ -256,7 +312,11 @@ namespace LSY
 			// Check For Table Updates
 			std::vector<uint64_t> byte_offsets;
 			std::vector<uint8_t> values;
-			bool get_all_data = has_master_device_changed; // If the master device has changed, we will send all data to the new master device.
+			auto& slave = slave_data[slave_address_from_master];
+			const bool poll_master_changed = track_polls && slave.poll_master != master_device;
+			const bool new_poll_session = track_polls && (!slave.master_connected || poll_master_changed);
+			// A returning master needs the full table even if its identifier is unchanged.
+			const bool get_all_data = has_master_device_changed || new_poll_session;
 			if (!slave_data[slave_address_from_master].indication_data_frame->GetUpdates(byte_offsets, values, get_all_data))
 			{
 				// Warning
@@ -299,6 +359,21 @@ namespace LSY
 				gen_msg_responce.push_back((uint8_t)crc_low);
 				gen_msg_responce.push_back((uint8_t)crc_high);
 
+			}
+
+			// Refresh the timer after building the poll reply, including an ACK with no updates.
+			if (track_polls)
+				slave.last_poll = std::chrono::steady_clock::now();
+
+			// Report the old master leaving before reporting a replacement master.
+			if (new_poll_session)
+			{
+				DisconnectMaster(slave);
+
+				slave.poll_master = master_device;
+				slave.master_connected = true;
+				if (callback_)
+					callback_(slave.slave_id, master_device, CALLBACKEVENT::MASTER_CONNECTED);
 			}
 
 			// Log Responce Message

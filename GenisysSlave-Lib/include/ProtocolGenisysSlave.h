@@ -1,5 +1,7 @@
 #pragma once
 
+#include <chrono>
+#include <functional>
 #include <vector>
 #include <map>
 #include <memory>
@@ -17,6 +19,10 @@ namespace LSY
 
 	public:
 
+		// Genisys master session transitions for a single slave ID.
+		enum class CALLBACKEVENT { MASTER_CONNECTED, MASTER_DISCONNECTED };
+		using EventCallback = std::function<void(uint8_t slave_id, std::string master_device, CALLBACKEVENT event)>;
+
 		struct SlaveData
 		{
 			// Data Objects
@@ -32,6 +38,11 @@ namespace LSY
 			uint64_t responce_counter;							// Number of responce messages sent from this slave to master.
 			uint8_t last_mode_byte_recived = 0;					// Last mode byte received from master device.
 			bool has_received_mode_byte = false;
+
+			// Poll tracking is independent for each slave ID.
+			bool master_connected = false; // True after the first poll until timeout or shutdown.
+			std::string poll_master; // Identifier of the last master to poll, retained after timeout.
+			std::chrono::steady_clock::time_point last_poll; // Monotonic timestamp used while connected.
 		};
 
 
@@ -40,17 +51,30 @@ namespace LSY
 		std::map<uint8_t, SlaveData> slave_data;				// Key = SlaveID, Value = SlaveData
 		std::vector<std::vector<uint8_t>> input_messages;
 
+		EventCallback callback_; // Optional handler for master session changes.
+		std::chrono::milliseconds poll_timeout_{5000};
+
 	public: // User API
+		// Replaces the handler. Pass an empty callback to clear it.
+		// The handler runs synchronously from the server loop or shutdown.
+		bool AddEventCallback(const EventCallback& func);
+		// Set the polling interval limit in milliseconds. Zero disables tracking.
+		void SetPollTimeout(uint32_t timeout_ms);
 		bool AddDataFrame(uint8_t slave_id, std::shared_ptr<DataFrame>& ind_data_frame_obj, std::shared_ptr<DataFrame>& ctl_data_frame_obj);
 		bool GetSlaveData(uint8_t slave_id, SlaveData& out_slave_data);
 		bool SetModeByteReturnValue(uint8_t slave_id, uint8_t mode_byte_value);
 
 	public: // Interface To Transport/Network Layers
 		bool ProcessMessages(std::vector<uint8_t> & data_buffer, std::string master_device = "");
+		// Call even when the transport receives no messages.
+		void CheckPollTimeouts();
+		// End active sessions on transport shutdown or connection loss.
+		void EndPollSessions();
 
 	private: // Helpers
+		void DisconnectMaster(SlaveData& slave);
 		bool SeperateMessages(std::vector<uint8_t> & data_buffer);
-		bool ProcessMessage(std::vector<uint8_t> & gen_msg_buffer, std::vector<uint8_t> & gen_msg_responce, std::string master_device = "");
+		bool ProcessMessage(std::vector<uint8_t> & gen_msg_buffer, std::vector<uint8_t> & gen_msg_responce, std::string master_device);
 		bool IsMasterMessageValid(const std::vector<uint8_t> & gen_msg_buffer);
 		bool CalculateCRC(const std::vector<uint8_t> & gen_msg_buffer, uint8_t *crc_low, uint8_t *crc_high);
 		bool RemoveEscapeChars(std::vector<uint8_t> & gen_msg_buffer);

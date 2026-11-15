@@ -133,6 +133,10 @@ namespace LSY
 
 	bool NetworkGenisysSlave::ServerLoop()
 	{
+		// Drive protocol timeouts even when the transport has no input.
+		if (protocol_)
+			protocol_->CheckPollTimeouts();
+
 		// Handle Serial Connection Type
 		if (configuration_.connection_type_ == NetworkGenisysSlave::Config::CONNECTIONTYPE::SERIAL)
 		{
@@ -149,7 +153,7 @@ namespace LSY
 		}
 
 		
-		struct sockaddr_in sender_addr;						// Used to store remote machines address
+		struct sockaddr_in sender_addr{};						// Used to store remote machines address
 		int sender_addr_size = sizeof(sender_addr);
 
 
@@ -158,7 +162,7 @@ namespace LSY
 			// Check if client is connected, if not check if we have an incoming connection
 			if (client_socket_ == INVALID_SOCKET)
 			{
-				client_socket_ = accept(server_socket_, (SOCKADDR*)&sender_addr, &sender_addr_size);
+				client_socket_ = accept(server_socket_, (SOCKADDR*)&tcp_peer_addr_, &sender_addr_size);
 			}
 
 			// Check if client is still not connected
@@ -177,15 +181,17 @@ namespace LSY
 
 
 			// Get TCP Message From Sender (Genisys Master)
-			// Add a client timeout code check here, if data not recived for a while?
+			// Retain the same master address for every poll on this socket.
+			sender_addr = tcp_peer_addr_;
 			bytes_received = recv(client_socket_, server_buf, server_buf_len, 0 /* no flags */);
 
-			//remote side (client) has preformed gracefull shut down.
-			if (bytes_received == 0) 
+			// A closed or failed TCP connection ends the poll session immediately.
+			if (bytes_received == 0 || (bytes_received == SOCKET_ERROR && WSAGetLastError() != WSAEWOULDBLOCK))
 			{
-				shutdown(client_socket_, SD_SEND);
 				closesocket(client_socket_);
 				client_socket_ = INVALID_SOCKET;
+				if (protocol_)
+					protocol_->EndPollSessions();
 				return false;
 			}
 
@@ -224,7 +230,7 @@ namespace LSY
 		// Get IP Address Of Sender (Genisys Master)
 		char source_ip_buf[100];
 		std::string source_ip_str = "";
-		PCSTR WSAAPI source_ip = inet_ntop(AF_INET, &(sender_addr.sin_addr), source_ip_buf, (size_t)80);
+		PCSTR source_ip = inet_ntop(AF_INET, &(sender_addr.sin_addr), source_ip_buf, (size_t)80);
 		if (source_ip == NULL)
 		{
 			Logging::LogErrorF("NetworkGenisysSlave::ServerLoop: [%d] Unable To Get Source IP Of Incoming Datagram", configuration_.server_port_);
@@ -302,7 +308,10 @@ namespace LSY
 		// Handle Serial Connection Type
 		if (configuration_.connection_type_ == NetworkGenisysSlave::Config::CONNECTIONTYPE::SERIAL)
 		{
-			return ShutdownSerialServer();
+			const bool stopped = ShutdownSerialServer();
+			if (protocol_)
+				protocol_->EndPollSessions();
+			return stopped;
 		}
 
 		if (server_socket_ != INVALID_SOCKET)
@@ -330,6 +339,9 @@ namespace LSY
 
 		if (is_wsa_started_)
 			WSACleanup();
+
+		if (protocol_)
+			protocol_->EndPollSessions();
 
 		return true;
 	}
@@ -555,9 +567,8 @@ namespace LSY
 			recv_msg.push_back(static_cast<uint8_t>(server_buf[i]));
 		}
 	
-		// Note: Serial communication doesn't have source IP concept like network protocols
-		// Using empty string for source_ip_str parameter in protocol processing
-		std::string source_ip_str = "SERIAL:" + configuration_.com_port_;
+		// Use the port label as the serial master identifier in logs and callbacks.
+		const std::string master_device = "SERIAL:" + configuration_.com_port_;
 		
 	
 		// ==================================================================================
@@ -565,7 +576,7 @@ namespace LSY
 		// ==================================================================================
 		// The protocol layer validates, parses, and generates response message
 		std::vector<uint8_t> respond_msg = recv_msg;
-		if (!protocol_->ProcessMessages(respond_msg, source_ip_str))
+		if (!protocol_->ProcessMessages(respond_msg, master_device))
 		{
 			Logging::LogErrorF("NetworkGenisysSlave::SerialServerLoop: [%s] Protocol processing failed",
 				configuration_.com_port_.c_str());

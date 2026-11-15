@@ -1,4 +1,4 @@
-﻿
+
 // STL
 #include <chrono>
 #include <sstream> 
@@ -363,6 +363,16 @@ bool cEvents::StartupGenisysNetwork()
 		return false;
 	}
 
+	// This protocol setting applies to every transport.
+	const wxString poll_timeout_text = m_textPollTimeout->GetValue().Strip(wxString::both);
+	unsigned long poll_timeout_ms = 0;
+	if (!poll_timeout_text.IsNumber() || !poll_timeout_text.ToULong(&poll_timeout_ms) || poll_timeout_ms > UINT32_MAX)
+	{
+		wxLogMessage("Poll timeout must be a whole number from 0 to 4294967295 milliseconds.");
+		ShutdownGenisysNetwork();
+		return false;
+	}
+
 	// Max Frame Size Is Hardcoded At 125
 	if (genisys_frame_size_ > 125)
 	{
@@ -396,6 +406,21 @@ bool cEvents::StartupGenisysNetwork()
 
 	// Protocol Setup
 	protocol_ = std::make_shared<ProtocolGenisysSlave>();
+	protocol_->SetPollTimeout(static_cast<uint32_t>(poll_timeout_ms));
+	m_staticTextMasterStatus->SetLabel(poll_timeout_ms == 0 ? "Master tracking disabled" : "Master disconnected");
+
+	const std::weak_ptr<ProtocolGenisysSlave> session = protocol_;
+	protocol_->AddEventCallback([this, session](uint8_t, std::string, ProtocolGenisysSlave::CALLBACKEVENT event)
+		{
+			// Queue the update on this frame and ignore events from a stopped or replaced session.
+			CallAfter([this, session, event]()
+				{
+					const auto active_session = session.lock();
+					if (active_session && active_session == protocol_)
+						m_staticTextMasterStatus->SetLabel(event == ProtocolGenisysSlave::CALLBACKEVENT::MASTER_CONNECTED
+							? "Master connected" : "Master disconnected");
+				});
+		});
 	if (!protocol_->AddDataFrame(genisys_slave_id_, data_frame_1_, data_frame_2_))
 	{
 		// Error: Data Frame Issue
@@ -498,6 +523,7 @@ void cEvents::ShutdownGenisysNetwork()
 	bit_offset_ = -1;
 	bit_value_ = false;
 	mode_byte_write_request_ = -1;
+	m_staticTextMasterStatus->SetLabel("Master disconnected");
 	m_staticTextLastModeByte->SetLabel("--");
 
 }
