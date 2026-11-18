@@ -734,33 +734,22 @@ namespace LSY
 
 	std::string ProtocolGenisysSlave::GetMessageHexString(const std::vector<uint8_t>& gen_msg_buffer)
 	{
-		char log_msg_buffer[1000];
-		size_t log_msg_buffer_size = 980;
-
-		for (int i = 0; i < gen_msg_buffer.size(); i++)
-			sprintf_s(log_msg_buffer, log_msg_buffer_size, "%s%02x ", log_msg_buffer, gen_msg_buffer[i]);
-
-		std::string str = log_msg_buffer;
-		return str;
+		constexpr char digits[] = "0123456789abcdef";
+		std::string text;
+		text.reserve(gen_msg_buffer.size() * 3);
+		for (const auto byte : gen_msg_buffer)
+		{
+			text += digits[byte >> 4];
+			text += digits[byte & 0x0F];
+			text += ' ';
+		}
+		return text;
 	}
 
-	void ProtocolGenisysSlave::LogGenisysMsg(const std::vector<uint8_t> & gen_msg_buffer)
+	void ProtocolGenisysSlave::LogGenisysMsg(const std::vector<uint8_t>& gen_msg_buffer)
 	{
-		// To Do: Size check log_msg_buffer
-		// This will caase a crash if a large enough "gen_msg_buffer" is received.
-
-		char log_msg_buffer[1000];
-		size_t log_msg_buffer_size = 980;
-
-		sprintf_s(log_msg_buffer, log_msg_buffer_size, "GENISYS MESSAGE HEX: ");
-		for (int i = 0; i < gen_msg_buffer.size(); i++)
-			sprintf_s(log_msg_buffer, log_msg_buffer_size, "%s%02x ", log_msg_buffer, gen_msg_buffer[i]);
-
-
-		std::string str = log_msg_buffer;
-		Logging::LogDebug(str);
+		Logging::LogDebug("GENISYS MESSAGE HEX: " + GetMessageHexString(gen_msg_buffer));
 	}
-
 
 	void ProtocolGenisysSlave::LogGenisysMsg(std::string master_ip, uint8_t slave_id, bool is_recv, uint8_t message_type, bool is_mode_byte, uint8_t mode_byte, const std::vector<uint8_t>& raw_data, std::string additional_notes)
 	{

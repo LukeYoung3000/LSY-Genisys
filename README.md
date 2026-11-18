@@ -1,4 +1,4 @@
-﻿
+
 <!-- PROJECT SCREEN SHOT -->
 ![Product Name Screen Shot][product-screenshot]
 Note: This screenshot is of GenisysSlave-Simulator version 0.5.0.9
@@ -22,6 +22,26 @@ Genisys slave device without having a physical device.
 **Warning** - This application/library should NEVER be used in an active rail environment.
 The source code dose minimal error checking/handling and was NOT written to any safety standard.
 Should be used for rudimentary testing purposes only.
+
+## Genisys Master (Development)
+
+**GenisysMaster-Lib** is a separate Windows C++ master library for testing slave
+implementations over UDP or serial. It supports multiple slave IDs, polling,
+recalls, indication callbacks, explicit controls, retries, and communication status.
+See [library usage](GenisysMaster-Lib/README.md).
+
+**GenisysMaster-Simulator** is a wxWidgets master test app styled like the slave
+simulator. It supports UDP and serial, live indication and editable control bit
+grids, manual recalls, and XML configurations compatible with the retired master apps.
+In Visual Studio select **GenisysMaster-Simulator** as the startup project and
+build **Debug | x64** or **Release | x64**. The project uses the same `WX_WIN`
+SDK setting as the slave simulator and copies matching wxWidgets DLLs and both
+XML examples beside the executable. Use **Open XML** to load an example, review
+the settings, and press **Start**. Click control bits or double-click a Hex cell
+to edit a draft, then use **Send changes** or **Send full frame**.
+
+The former master console and Qt GUI are preserved in Git at the
+`archive/master-console-and-qt-gui` tag.
 
 ## Usage (For Users)
 
@@ -53,8 +73,8 @@ Server must be stoped and restarted to register the updates.
 
 
 ## Limitations
-- Genisys Slave/Server only (Genisys Master/Client to be designed if future)
-- CRC checksums are not currently validated (They can be anything and still pass)
+- The master supports UDP and serial. TCP support is limited to the slave simulator in server mode.
+- The slave library does not currently validate incoming CRC checksums.
 - LSY::DataFrame objects are not currently thread safe. These objects will be used by the Genisys lib and by user code, so they should be thread safe.
 
 
@@ -75,6 +95,8 @@ C++, Winsock, wxWidgets, Visual Studio 2026, Hercules, SerialTool.
 
 ## AI Usage
 As of GenisysSlave-Simulator 0.4.0.8 AI tools (Github Copilot and Open AI Codex) will be used for code generation, any AI code generated will be human reviewed before merging to git main.
+
+OpenAI Codex developed Genisys Master, including the master library and simulator, with limited manual testing and review by Luke Young.
 
 
 

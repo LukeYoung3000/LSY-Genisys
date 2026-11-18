@@ -1,4 +1,4 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.7.34003.232
@@ -15,6 +15,10 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "GenisysSlave-Simulator", "G
 		{FF6E29F9-C320-4FC4-B61B-7A3B3111C8F8} = {FF6E29F9-C320-4FC4-B61B-7A3B3111C8F8}
 	EndProjectSection
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "GenisysMaster-Lib", "GenisysMaster-Lib\GenisysMaster-Lib.vcxproj", "{869A0991-99E8-4C37-920B-30839547A1E3}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "GenisysMaster-Simulator", "GenisysMaster-Simulator\GenisysMaster-Simulator.vcxproj", "{62902982-3618-48A4-A7EF-17CD77B1862E}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -23,6 +27,22 @@ Global
 		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{62902982-3618-48A4-A7EF-17CD77B1862E}.Debug|x64.ActiveCfg = Debug|x64
+		{62902982-3618-48A4-A7EF-17CD77B1862E}.Debug|x64.Build.0 = Debug|x64
+		{62902982-3618-48A4-A7EF-17CD77B1862E}.Debug|x86.ActiveCfg = Debug|Win32
+		{62902982-3618-48A4-A7EF-17CD77B1862E}.Debug|x86.Build.0 = Debug|Win32
+		{62902982-3618-48A4-A7EF-17CD77B1862E}.Release|x64.ActiveCfg = Release|x64
+		{62902982-3618-48A4-A7EF-17CD77B1862E}.Release|x64.Build.0 = Release|x64
+		{62902982-3618-48A4-A7EF-17CD77B1862E}.Release|x86.ActiveCfg = Release|Win32
+		{62902982-3618-48A4-A7EF-17CD77B1862E}.Release|x86.Build.0 = Release|Win32
+		{869A0991-99E8-4C37-920B-30839547A1E3}.Debug|x64.ActiveCfg = Debug|x64
+		{869A0991-99E8-4C37-920B-30839547A1E3}.Debug|x64.Build.0 = Debug|x64
+		{869A0991-99E8-4C37-920B-30839547A1E3}.Debug|x86.ActiveCfg = Debug|Win32
+		{869A0991-99E8-4C37-920B-30839547A1E3}.Debug|x86.Build.0 = Debug|Win32
+		{869A0991-99E8-4C37-920B-30839547A1E3}.Release|x64.ActiveCfg = Release|x64
+		{869A0991-99E8-4C37-920B-30839547A1E3}.Release|x64.Build.0 = Release|x64
+		{869A0991-99E8-4C37-920B-30839547A1E3}.Release|x86.ActiveCfg = Release|Win32
+		{869A0991-99E8-4C37-920B-30839547A1E3}.Release|x86.Build.0 = Release|Win32
 		{FF6E29F9-C320-4FC4-B61B-7A3B3111C8F8}.Debug|x64.ActiveCfg = Debug|x64
 		{FF6E29F9-C320-4FC4-B61B-7A3B3111C8F8}.Debug|x64.Build.0 = Debug|x64
 		{FF6E29F9-C320-4FC4-B61B-7A3B3111C8F8}.Debug|x86.ActiveCfg = Debug|Win32
