@@ -7,7 +7,7 @@
 #include <thread>
 #include <stdexcept>
 #include <functional>
-#include "../../GenisysMaster-Console/ConsoleRecalls.h"
+#include "../../GenisysMaster-Common/ConsoleRecalls.h"
 using Network = LSY::NetworkGenisysMaster;
 using Bytes = std::vector<uint8_t>;
 void Check(bool value, const char* text) { if (!value) throw std::runtime_error(text); }

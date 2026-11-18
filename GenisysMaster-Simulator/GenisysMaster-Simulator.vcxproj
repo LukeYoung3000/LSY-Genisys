@@ -96,7 +96,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;%(PreprocessorDefinitions);_CRT_SECURE_NO_WARNINGS</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode><LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>$(WX_WIN)\include\msvc;$(WX_WIN)\Include;$(ProjectDir)..\GenisysMaster-Lib\include;$(ProjectDir)..\GenisysMaster-Console;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(WX_WIN)\include\msvc;$(WX_WIN)\Include;$(ProjectDir)..\GenisysMaster-Lib\include;$(ProjectDir)..\GenisysMaster-Common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -113,7 +113,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;%(PreprocessorDefinitions);_CRT_SECURE_NO_WARNINGS</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode><LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>$(WX_WIN)\include\msvc;$(WX_WIN)\Include;$(ProjectDir)..\GenisysMaster-Lib\include;$(ProjectDir)..\GenisysMaster-Console;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(WX_WIN)\include\msvc;$(WX_WIN)\Include;$(ProjectDir)..\GenisysMaster-Lib\include;$(ProjectDir)..\GenisysMaster-Common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -130,7 +130,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>_DEBUG;_WINDOWS;%(PreprocessorDefinitions);_CRT_SECURE_NO_WARNINGS</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode><LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>$(WX_WIN)\include\msvc;$(WX_WIN)\Include;$(ProjectDir)..\GenisysMaster-Lib\include;$(ProjectDir)..\GenisysMaster-Console;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(WX_WIN)\include\msvc;$(WX_WIN)\Include;$(ProjectDir)..\GenisysMaster-Lib\include;$(ProjectDir)..\GenisysMaster-Common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -147,7 +147,7 @@
       <SDLCheck>true</SDLCheck>
       <PreprocessorDefinitions>NDEBUG;_WINDOWS;%(PreprocessorDefinitions);_CRT_SECURE_NO_WARNINGS</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode><LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>$(WX_WIN)\include\msvc;$(WX_WIN)\Include;$(ProjectDir)..\GenisysMaster-Lib\include;$(ProjectDir)..\GenisysMaster-Console;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(WX_WIN)\include\msvc;$(WX_WIN)\Include;$(ProjectDir)..\GenisysMaster-Lib\include;$(ProjectDir)..\GenisysMaster-Common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -161,10 +161,12 @@
   <ItemGroup>
     <ClCompile Include="Simulator.cpp" />
     <ClCompile Include="SimulatorSession.cpp" />
-    <ClCompile Include="..\GenisysMaster-Console\ConsoleConfiguration.cpp" />
-    <ClCompile Include="..\GenisysMaster-Console\third_party\pugixml\pugixml.cpp" />
+    <ClCompile Include="..\GenisysMaster-Common\ConsoleConfiguration.cpp" />
+    <ClCompile Include="..\GenisysMaster-Common\third_party\pugixml\pugixml.cpp" />
     <ClInclude Include="SimulatorSession.h" />
     <ClInclude Include="Version.h" />
+    <None Include="GenisysMaster.example.xml" />
+    <None Include="GenisysMaster.serial.example.xml" />
     <ProjectReference Include="..\GenisysMaster-Lib\GenisysMaster-Lib.vcxproj">
       <Project>{869A0991-99E8-4C37-920B-30839547A1E3}</Project>
     </ProjectReference>
@@ -176,7 +178,7 @@
       <SimulatorDll Include="$(wxLibOrDllDir)\wxbase32*u_*.dll;$(wxLibOrDllDir)\wxmsw32*u_core_*.dll" Exclude="$(wxLibOrDllDir)\wxbase32*ud_*.dll;$(wxLibOrDllDir)\wxmsw32*ud_core_*.dll" Condition="'$(Configuration)'=='Release' and '$(wxUsingDll)'=='1'" />
     </ItemGroup>
     <Copy SourceFiles="@(SimulatorDll)" DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
-    <Copy SourceFiles="$(ProjectDir)..\GenisysMaster-Console\GenisysMaster.example.xml;$(ProjectDir)..\GenisysMaster-Console\GenisysMaster.serial.example.xml"
+    <Copy SourceFiles="$(ProjectDir)GenisysMaster.example.xml;$(ProjectDir)GenisysMaster.serial.example.xml"
           DestinationFolder="$(OutDir)" SkipUnchangedFiles="true" />
   </Target>
   <ImportGroup Label="ExtensionTargets">

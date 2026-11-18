@@ -1,8 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Serial master GUI/console example. Copy to your own filename before editing.
-     Select a free COM port and line settings matching your slave device.
-     The GUI loads this while stopped; click Start explicitly after reviewing settings.
-     Control values are never restored or automatically sent from configuration. -->
+<!-- Example for GenisysMaster-Simulator. Copy before editing, then use Open XML. -->
 <GenisysMaster version="1" transport="serial">
   <!-- COM1, COM10 and higher are supported. Port access is exclusive.
        Baud must be positive. Genisys requires 8 data bits.
@@ -18,12 +15,6 @@
        reply at the chosen baud rate. Controls are never automatically resent. -->
   <Polling enabled="true" secure="true" interval-ms="500"
            response-timeout-ms="1000" retries="2" recovery-interval-ms="2000" />
-
-  <!-- Console-only: recall-all performs one exchange per ID in sequence and then exits.
-       Its overall wait budget must allow for all slaves, including retries.
-       run-ms=0 runs interactively; a positive value makes a bounded polling run.
-       Choose either recall-all or a positive run-ms, not both. -->
-  <Console plain="false" recall-all="false" wait-ms="15000" run-ms="0" />
 
   <!-- No IP or UDP port is needed for serial. IDs are unique (1..255).
        Frame size is 1..224 bytes, used for indications and local control drafts.

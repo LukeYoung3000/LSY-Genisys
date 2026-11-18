@@ -243,4 +243,3 @@ bool SimulatorSession::busyForControl(int id) const
     }
     return false;
 }
-

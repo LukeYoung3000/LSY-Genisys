@@ -67,9 +67,9 @@ int main()
 			Check(rejected, "Invalid XML/settings must fail with the file path");
 			Check(settings.slaves.size() == 2 && settings.network.response_timeout_ms_ == 40, "Invalid file must not partially apply settings");
 		}
-		LoadConsoleConfiguration("../GenisysMaster-Console/GenisysMaster.example.xml", settings);
+		LoadConsoleConfiguration("../GenisysMaster-Simulator/GenisysMaster.example.xml", settings);
 		Check(settings.slaves.size() == 1 && settings.slaves[0].id == 34 && !settings.plain, "Commented example is loadable with the simulator defaults");
-		LoadConsoleConfiguration("../GenisysMaster-Console/GenisysMaster.serial.example.xml", settings);
+		LoadConsoleConfiguration("../GenisysMaster-Simulator/GenisysMaster.serial.example.xml", settings);
 		using Type = LSY::NetworkGenisysMaster::Config::CONNECTIONTYPE;
 		Check(settings.network.connection_type_ == Type::SERIAL && settings.network.com_port_ == "COM10" &&
 			settings.network.baud_rate_ == 9600 && settings.network.data_bits_ == 8 && settings.network.parity_ == 'N' &&

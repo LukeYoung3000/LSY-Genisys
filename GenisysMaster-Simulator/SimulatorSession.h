@@ -54,4 +54,3 @@ private:
     Slave* mutableSlave(int id);
     void log(int id, const std::string& message, const std::string& category = "System", int severity = 0);
 };
-

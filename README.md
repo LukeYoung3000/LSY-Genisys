@@ -28,27 +28,20 @@ Should be used for rudimentary testing purposes only.
 **GenisysMaster-Lib** is a separate Windows C++ master library for testing slave
 implementations over UDP or serial. It supports multiple slave IDs, polling,
 recalls, indication callbacks, explicit controls, retries, and communication status.
-Both the console and Qt GUI support UDP and serial.
 See [library usage](GenisysMaster-Lib/README.md).
-
-**GenisysMaster-Console** supports UDP and serial through CLI/XML, and provides a fixed dashboard with indication/control views,
-local control editing, explicit sending, and an event log. Use `--plain` for scrolling
-text. See [console setup and controls](GenisysMaster-Console/README.md).
-
-**GenisysMaster-GUI** is a Qt Widgets desktop application using the same master
-library. It supports XML load/save, slave editing, UDP/serial polling,
-live indications, explicit control drafts/sends, and a filterable event log.
-See [GUI setup, checks and packaging](GenisysMaster-GUI/README.md).
 
 **GenisysMaster-Simulator** is a wxWidgets master test app styled like the slave
 simulator. It supports UDP and serial, live indication and editable control bit
-grids, manual recalls, and the same XML configuration as the console and Qt GUI.
+grids, manual recalls, and XML configurations compatible with the retired master apps.
 In Visual Studio select **GenisysMaster-Simulator** as the startup project and
 build **Debug | x64** or **Release | x64**. The project uses the same `WX_WIN`
 SDK setting as the slave simulator and copies matching wxWidgets DLLs and both
 XML examples beside the executable. Use **Open XML** to load an example, review
 the settings, and press **Start**. Click control bits or double-click a Hex cell
 to edit a draft, then use **Send changes** or **Send full frame**.
+
+The former master console and Qt GUI are preserved in Git at the
+`archive/master-console-and-qt-gui` tag.
 
 ## Usage (For Users)
 

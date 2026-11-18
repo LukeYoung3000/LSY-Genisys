@@ -3,9 +3,7 @@
 Master UDP/serial library with polling, retries, communication status, recovery, and explicit controls.
 
 The master supports UDP and Windows COM ports using a caller-driven, nonblocking processing loop.
-GenisysMaster-Console is included in the solution for polling and manual recalls.
-TCP is not implemented. The console and Qt GUI both support serial configuration and XML. The console includes a control editor and explicit send commands; see its README
-for usage.
+GenisysMaster-Simulator provides polling, manual recalls, and explicit control sends over UDP and serial.
 
 The static library uses the existing LSY namespace and include/src layout:
 
@@ -25,8 +23,7 @@ configurations are supported. Outputs are local to this project:
     builds/<Platform>/<Configuration>/GenisysMaster-Lib.lib
     builds/<Platform>/<Configuration>/obj/
 
-GenisysMaster-Console links this library through a project reference. See its
-README for simulator settings, interactive commands, and one-shot recalls.
+GenisysMaster-Simulator links this library through a project reference.
 
 ## Data-frame usage
 
@@ -249,7 +246,7 @@ can be retried. Rebuild static-library consumers after updating the library.
 
 Serial defaults are COM1, 9600 baud, 8 data bits, no parity, one stop bit, and a
 1000 ms write timeout. Parity accepts N/E/O, case-insensitively; stop bits accept
-1 or 2. Eight data bits are required to preserve Genisys headers and escaping.
+1 or 2. seven data bits are required to preserve Genisys headers and escaping.
 The port is opened exclusively, including COM10 and higher. Hardware/software
 flow control is disabled. dtr_enable_ and rts_enable_ optionally assert fixed
 line levels (both default false); they do not implement flow control or RS-485
@@ -288,7 +285,7 @@ thread. No transport thread or external serial library is required.
 Genisys has no transaction sequence number, so a delayed response for a new
 exchange with the same ID remains indistinguishable at the protocol level.
 Serial byte-stream checks run without hardware; native driver/wiring validation
-requires two connected COM ports (see below). The console supports both transports through CLI/XML; the Qt GUI also supports serial selection and line settings.
+requires two connected COM ports (see below). The simulator supports both transports through its GUI and XML settings.
 
 Win32 references: [serial resource handles](https://learn.microsoft.com/en-us/windows/win32/devio/communications-resource-handles),
 [communication timeouts](https://learn.microsoft.com/en-us/windows/win32/api/winbase/ns-winbase-commtimeouts),
@@ -368,8 +365,8 @@ the solution directory:
 GenisysMaster-Lib\tests\RunChecks.cmd
 ```
 
-This builds the Debug x64 master library, compiles eight standalone console
-executables, and runs all eight. The UDP checks also build GenisysSlave-Lib. A failure returns a nonzero exit code. Build products
+This builds the Debug x64 master library, compiles seven standalone console
+executables, and runs all seven. The UDP checks also build GenisysSlave-Lib. A failure returns a nonzero exit code. Build products
 stay under builds/x64/Debug/checks. MasterDataFrameChecks covers bit/byte access,
 control snapshots, callbacks, modes, and payload validation.
 ProtocolGenisysMasterChecks compares requests and replies against the GE
@@ -389,7 +386,7 @@ ConsoleControlsChecks verifies console draft-to-wire behaviour against slave
 control frames/callbacks, mode/full sends, acknowledgement of in-flight snapshots,
 and explicit sends after a timeout using the newest edits.
 ConsoleConfigurationChecks covers the console XML loader, defaults, example,
-and validation. pugixml is compiled into that check and the console only; the
+and validation. pugixml is compiled into that check and the simulator; the
 master library does not depend on it.
 SerialGenisysMasterChecks uses a private injected byte-stream backend with the
 existing slave protocol to exercise fragmentation, escaped IDs, serialized/fair
@@ -413,10 +410,6 @@ Without port arguments this native loopback test is reported as SKIP, not PASS.
 
 The Process(bool allow_automatic_requests) overload can defer new automatic
 polls/recalls for a call while still progressing active I/O, deadlines and retries.
-Process() retains its original behavior. The console uses this to prioritize its
+Process() retains its original behavior. The simulator uses this to prioritize its
 explicit recall queue without racing automatic serial polling. IsRunning reports
 whether the socket/COM backend remains open, including after a fatal serial error.
-
-ConsoleAppChecks builds and launches the console to verify serial diagnostics,
-CLI/XML transport precedence, multi-ID UDP recalls and bounded polling. See the
-console README for serial CLI flags and the commented serial XML example.
