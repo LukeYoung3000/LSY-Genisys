@@ -73,8 +73,8 @@ Server must be stoped and restarted to register the updates.
 
 
 ## Limitations
-- Genisys Slave/Server only (Genisys Master/Client to be designed if future)
-- CRC checksums are not currently validated (They can be anything and still pass)
+- The master supports UDP and serial. TCP support is limited to the slave simulator in server mode.
+- The slave library does not currently validate incoming CRC checksums.
 - LSY::DataFrame objects are not currently thread safe. These objects will be used by the Genisys lib and by user code, so they should be thread safe.
 
 
@@ -95,6 +95,8 @@ C++, Winsock, wxWidgets, Visual Studio 2026, Hercules, SerialTool.
 
 ## AI Usage
 As of GenisysSlave-Simulator 0.4.0.8 AI tools (Github Copilot and Open AI Codex) will be used for code generation, any AI code generated will be human reviewed before merging to git main.
+
+OpenAI Codex developed Genisys Master, including the master library and simulator, with limited manual testing and review by Luke Young.
 
 
 
