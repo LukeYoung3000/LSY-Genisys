@@ -74,7 +74,6 @@ Server must be stoped and restarted to register the updates.
 
 ## Limitations
 - The master supports UDP and serial. TCP support is limited to the slave simulator in server mode.
-- The slave library does not currently validate incoming CRC checksums.
 - LSY::DataFrame objects are not currently thread safe. These objects will be used by the Genisys lib and by user code, so they should be thread safe.
 
 
