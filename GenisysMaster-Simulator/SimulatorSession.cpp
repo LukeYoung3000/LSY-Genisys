@@ -82,6 +82,11 @@ void SimulatorSession::setTransportConfiguration(const LSY::NetworkGenisysMaster
     lastError_.clear();
     configuration_.network = config;
 }
+void SimulatorSession::setFlushControlsOnConnect(bool enabled)
+{
+    if (running()) throw std::runtime_error("Stop communications before changing control flush settings.");
+    configuration_.flush_controls_on_connect = enabled;
+}
 void SimulatorSession::start()
 {
     if (running()) return;
@@ -133,7 +138,7 @@ void SimulatorSession::start()
     recalls_ = std::make_unique<ConsoleRecalls>(ids, serial());
     protocol_ = std::move(protocol);
     network_ = std::move(network);
-    for (auto& state : slaves_) state.status = {};
+    for (auto& state : slaves_) { state.status = {}; state.flushPending = false; }
     log(0, ConsoleTransportDescription(configuration_.network, localPort()) + " started", "Status");
 }
 void SimulatorSession::stop()
@@ -147,16 +152,14 @@ void SimulatorSession::stop()
         state.status.busy = false;
         state.status.indications_current = false;
         state.status.communication = LSY::NetworkGenisysMaster::COMMUNICATIONSTATUS::UNKNOWN;
+        state.flushPending = false;
     }
     log(0, serial() ? "Serial stopped; cached indications are stale" : "UDP stopped; cached indications are stale", "Status");
 }
 void SimulatorSession::process()
 {
     if (!network_) return;
-    network_->Process(!recalls_->Pending()); // Explicit recalls take priority over new scheduled polls.
-    if (network_->IsRunning())
-        for (const auto& request : recalls_->Process(*network_))
-            log(request.id, request.sent ? "Recall sent" : "Recall send failed", "Status", request.sent ? 0 : 1);
+    network_->Process(!recalls_->Pending() && !controlsPending());
     for (const auto& response : network_->GetResponses())
     {
         if (auto* state = mutableSlave(response.slave_id))
@@ -177,7 +180,26 @@ void SimulatorSession::process()
         else if (event.type == Event::TIMEOUT) log(event.slave_id, "Response timeout", "Status", 1);
         else if (event.type == Event::SEND_FAILED) log(event.slave_id, "Request send failed", "Status", 2);
     }
-    for (auto& state : slaves_) network_->GetSlaveStatus(state.configuration.id, state.status);
+    for (auto& state : slaves_)
+    {
+        const auto previous = state.status.communication;
+        network_->GetSlaveStatus(state.configuration.id, state.status);
+        if (configuration_.flush_controls_on_connect && previous != LSY::NetworkGenisysMaster::COMMUNICATIONSTATUS::ONLINE &&
+            state.status.communication == LSY::NetworkGenisysMaster::COMMUNICATIONSTATUS::ONLINE)
+            state.flushPending = true;
+        if (state.flushPending && !state.controls.Queued() && !state.controls.Active() && state.controls.Queue(true))
+        {
+            state.flushPending = false;
+            log(state.configuration.id, "Full control flush queued after slave came online", "Controls");
+        }
+    }
+    if (network_->IsRunning())
+    {
+        dispatchControls();
+        if (!controlsPending())
+            for (const auto& request : recalls_->Process(*network_))
+                log(request.id, request.sent ? "Recall sent" : "Recall send failed", "Status", request.sent ? 0 : 1);
+    }
     if (!network_->IsRunning())
     {
         // Consume control response/transaction events above before retiring I/O.
@@ -217,12 +239,34 @@ void SimulatorSession::stageMode(int id, bool include, int value)
 bool SimulatorSession::sendControl(int id, bool full)
 {
     auto* state = mutableSlave(id);
-    if (!state || !network_ || busyForControl(id) || !state->controls.Send(*network_, static_cast<uint8_t>(id), full))
+    if (!state || !network_ || !state->controls.Queue(full))
     {
-        log(id, "Control NOT sent: stopped, busy, no changes/mode, or send failed", "Controls", 1); return false;
+        log(id, "Control NOT queued: stopped, already pending, or no changes/mode", "Controls", 1); return false;
     }
-    log(id, full ? "Full control frame explicitly sent" : "Changed controls explicitly sent", "Controls");
+    log(id, full ? "Full control frame queued" : "Changed controls queued", "Controls");
+    dispatchControls();
     return true;
+}
+
+bool SimulatorSession::controlsPending() const
+{
+    for (const auto& state : slaves_) if (state.controls.Queued()) return true;
+    return false;
+}
+
+void SimulatorSession::dispatchControls()
+{
+    if (!network_) return;
+    for (auto& state : slaves_)
+    {
+        if (!state.controls.Queued() || state.status.busy) continue;
+        if (serial())
+            for (const auto& other : slaves_) if (other.status.busy) return;
+        const auto id = state.configuration.id;
+        if (state.controls.Dispatch(*network_, id)) log(id, "Queued control frame sent", "Controls");
+        else log(id, "Queued control frame send failed", "Controls", 2);
+        if (serial()) return;
+    }
 }
 
 std::string SimulatorSession::destination(int id) const
@@ -235,11 +279,5 @@ std::string SimulatorSession::destination(int id) const
 bool SimulatorSession::busyForControl(int id) const
 {
     const auto* state = slave(id);
-    if (!running() || !state || state->status.busy) return true;
-    if (serial())
-    {
-        if (recalls_ && recalls_->Pending()) return true;
-        for (const auto& item : slaves_) if (item.status.busy) return true;
-    }
-    return false;
+    return !running() || !state || state->controls.Queued() || state->controls.Active();
 }

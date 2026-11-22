@@ -413,3 +413,9 @@ polls/recalls for a call while still progressing active I/O, deadlines and retri
 Process() retains its original behavior. The simulator uses this to prioritize its
 explicit recall queue without racing automatic serial polling. IsRunning reports
 whether the socket/COM backend remains open, including after a fatal serial error.
+
+The simulator queues explicit controls behind an active exchange and pauses new
+automatic polling until the queued snapshot is dispatched. By default it sends
+one full control snapshot whenever a slave transitions from offline to online.
+Set `<Controls flush-on-connect="false" />` in the simulator XML, or clear the
+matching GUI checkbox, to disable that recovery flush for testing.

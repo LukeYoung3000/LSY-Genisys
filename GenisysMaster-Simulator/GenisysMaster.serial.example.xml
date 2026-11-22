@@ -16,6 +16,9 @@
   <Polling enabled="true" secure="true" interval-ms="500"
            response-timeout-ms="1000" retries="2" recovery-interval-ms="2000" />
 
+  <!-- Send one full control frame after every offline-to-online transition. -->
+  <Controls flush-on-connect="true" />
+
   <!-- No IP or UDP port is needed for serial. IDs are unique (1..255).
        Frame size is 1..224 bytes, used for indications and local control drafts.
        All IDs in this list are on the COM port above. -->

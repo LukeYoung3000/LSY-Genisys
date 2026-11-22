@@ -96,7 +96,7 @@ template<typename Path> void LoadConfigurationImpl(const Path& path, const std::
 			else if (node.type() != pugi::node_declaration && node.type() != pugi::node_comment) Fail("Unsupported XML document content");
 		}
 		if (elements != 1) Fail("Expected exactly one root element");
-		Shape(root, {"version", "transport"}, {"Udp", "Serial", "Polling", "Console", "Slaves"});
+		Shape(root, {"version", "transport"}, {"Udp", "Serial", "Polling", "Controls", "Console", "Slaves"});
 		if (Required(root, "version") != "1") Fail("Unsupported configuration version (expected 1)");
 		ConsoleConfiguration loaded;
 		const std::string transport = root.attribute("transport").as_string("udp");
@@ -139,6 +139,11 @@ template<typename Path> void LoadConfigurationImpl(const Path& path, const std::
 			loaded.recall_all = Boolean(console, "recall-all", false);
 			loaded.wait_ms = Number(console, "wait-ms", 1, 600000, 3000);
 			loaded.run_ms = Number(console, "run-ms", 0, 600000, 0);
+		}
+		if (auto controls = Section(root, "Controls"))
+		{
+			Shape(controls, {"flush-on-connect"}, {});
+			loaded.flush_controls_on_connect = Boolean(controls, "flush-on-connect", true);
 		}
 		auto slaves = Section(root, "Slaves");
 		if (!slaves) Fail("Missing <Slaves> section");
