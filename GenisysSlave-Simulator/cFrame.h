@@ -13,6 +13,7 @@
 #include <wx/combobox.h>
 #include <wx/tglbtn.h>
 #include <wx/button.h>
+#include <wx/checkbox.h>
 #include <wx/bitmap.h>
 #include <wx/image.h>
 #include <wx/icon.h>
@@ -47,6 +48,8 @@ class cFrame : public wxFrame
 		wxButton* m_saveSlave;
 		wxTextCtrl* m_textSlaveID;
 		wxTextCtrl* m_textFrameSize;
+		wxCheckBox* m_alwaysRecallResponse;
+		wxCheckBox* m_includeRecallMode;
 		wxTextCtrl* m_textPollTimeout;
 		wxToggleButton* m_toggleStartStop;
 		wxStaticText* m_staticTextLastMasterIp;
@@ -73,6 +76,7 @@ class cFrame : public wxFrame
 		virtual void StartStopServerEvent( wxCommandEvent& event ) { event.Skip(); }
 		virtual void ApplyModeByteEvent( wxCommandEvent& event ) { event.Skip(); }
 		virtual void GridClickEvent( wxGridEvent& event ) { event.Skip(); }
+		virtual void GridDoubleClickEvent( wxGridEvent& event ) { event.Skip(); }
 		virtual void MenuHelpLogOnMenuSelection( wxCommandEvent& event ) { event.Skip(); }
 		virtual void MenuHelpProtocolLogOnMenuSelection( wxCommandEvent& event ) { event.Skip(); }
 		virtual void MenuHelpAboutOnMenuSelection( wxCommandEvent& event ) { event.Skip(); }

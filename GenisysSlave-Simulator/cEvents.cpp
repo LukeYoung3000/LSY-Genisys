@@ -9,6 +9,7 @@
 #include <wx/app.h>
 #include <wx/filename.h>
 #include <wx/stdpaths.h>
+#include <wx/textdlg.h>
 
 // GenisysSlave-Lib
 #include "GenisysSlave-Lib-Version.h"
@@ -129,6 +130,8 @@ void cEvents::SelectSlave()
 	m_textSlaveID->ChangeValue(wxString::Format("%d", slave.id));
 	m_textFrameSize->ChangeValue(wxString::Format("%d", slave.frameSize));
 	m_textModeByteReturn->ChangeValue(wxString::Format("0x%02X", static_cast<unsigned int>(slave.responseMode)));
+	m_alwaysRecallResponse->SetValue(slave.alwaysRecallResponse);
+	m_includeRecallMode->SetValue(slave.includeRecallMode);
 	RefreshSlaveView();
 }
 
@@ -156,7 +159,7 @@ bool cEvents::SaveSelectedSlave()
 	if (!GetModeByteReturnValue(mode))
 		return false;
 
-	slaves_[selection] = {id, frameSize, mode};
+	slaves_[selection] = {id, frameSize, mode, m_alwaysRecallResponse->GetValue(), m_includeRecallMode->GetValue()};
 	RefreshSlaveView();
 	return true;
 }
@@ -196,6 +199,8 @@ void cEvents::UpdateSlaveControls()
 	m_saveSlave->Enable(!running);
 	m_textSlaveID->Enable(!running);
 	m_textFrameSize->Enable(!running);
+	m_alwaysRecallResponse->Enable(!running);
+	m_includeRecallMode->Enable(!running);
 	m_radioBox1->Enable(!running);
 	m_textPollTimeout->Enable(!running);
 	m_textUDPrx->Enable(!running);
@@ -240,12 +245,36 @@ void cEvents::StartStopServerEvent(wxCommandEvent& event)
 
 void cEvents::GridClickEvent(wxGridEvent& event)
 {
-	if (network_thread_.joinable() && event.GetRow() >= 0 && event.GetCol() >= 0)
+	if (network_thread_.joinable() && event.GetRow() >= 0 && event.GetCol() > 0)
 	{
 		const auto& slave = slaves_[m_slaveList->GetSelection()];
 		// Capture the ID on click so a queued edit follows the original slave.
 		std::lock_guard<std::mutex> lock(slave_state_mutex_);
-		edits_.push_back({slave.id, event.GetRow(), 7 - event.GetCol(), -1});
+		edits_.push_back({slave.id, event.GetRow(), 8 - event.GetCol(), -1});
+	}
+	event.Skip();
+}
+
+void cEvents::GridDoubleClickEvent(wxGridEvent& event)
+{
+	if (!network_thread_.joinable() || event.GetRow() < 0 || event.GetCol() != 0)
+	{
+		event.Skip();
+		return;
+	}
+
+	wxTextEntryDialog dialog(this, "Enter a byte in hexadecimal (00-FF)", "Edit indication byte",
+		m_grid3->GetCellValue(event.GetRow(), 0));
+	if (dialog.ShowModal() == wxID_OK)
+	{
+		unsigned long value = 0;
+		if (dialog.GetValue().ToULong(&value, 16) && value <= 0xFF)
+		{
+			const auto& slave = slaves_[m_slaveList->GetSelection()];
+			std::lock_guard<std::mutex> lock(slave_state_mutex_);
+			edits_.push_back({slave.id, event.GetRow(), -1, -1, static_cast<int>(value)});
+		}
+		else wxMessageBox("Enter a hexadecimal byte from 00 to FF.", "Invalid byte", wxOK | wxICON_WARNING, this);
 	}
 	event.Skip();
 }
@@ -388,6 +417,8 @@ bool cEvents::StartupGenisysNetwork()
 			return false;
 		}
 		protocol_->SetModeByteReturnValue(static_cast<uint8_t>(slave.id), slave.responseMode);
+		protocol_->SetAlwaysRecallResponse(static_cast<uint8_t>(slave.id), slave.alwaysRecallResponse);
+		protocol_->SetRecallModeByteEnabled(static_cast<uint8_t>(slave.id), slave.includeRecallMode);
 	}
 
 	// Network/Serial Configuration
@@ -487,6 +518,11 @@ void cEvents::RunningloopGenisysNetwork()
 			}
 
 			ProtocolGenisysSlave::SlaveData data;
+			if (edit.value >= 0)
+			{
+				if (protocol_->GetSlaveData(id, data)) data.indication_data_frame->WriteByte(edit.row, static_cast<uint8_t>(edit.value));
+				continue;
+			}
 			bool value = false;
 			if (protocol_->GetSlaveData(id, data) && data.indication_data_frame->ReadBit(edit.row, edit.bit, value))
 				data.indication_data_frame->WriteBit(edit.row, edit.bit, !value);
@@ -505,6 +541,9 @@ void cEvents::RunningloopGenisysNetwork()
 			auto& snapshot = snapshots[slave.id];
 			data.indication_data_frame->ReadBytes(0, slave.frameSize, snapshot.indications);
 			data.control_data_frame->ReadBytes(0, slave.frameSize, snapshot.controls);
+			snapshot.indicationDirty.resize(slave.frameSize);
+			for (int offset = 0; offset < slave.frameSize; ++offset)
+				snapshot.indicationDirty[offset] = data.indication_data_frame->IsByteDirty(offset);
 			snapshot.master = data.last_master_device_to_poll_name;
 			snapshot.responses = data.responce_counter;
 			snapshot.connected = master_connections_[slave.id];
@@ -545,7 +584,8 @@ void cEvents::RefreshSlaveView()
 	}
 
 	const int frameSize = slaves_[selection].frameSize;
-	auto updateGrid = [frameSize](wxGrid* grid, const std::vector<uint8_t>& bytes)
+	auto updateGrid = [frameSize](wxGrid* grid, const std::vector<uint8_t>& bytes,
+		const std::vector<bool>& dirty, bool includeHex)
 	{
 		grid->BeginBatch();
 		const int rows = grid->GetNumberRows();
@@ -559,23 +599,32 @@ void cEvents::RefreshSlaveView()
 			const auto rowLabel = wxString::Format("Byte %d", row);
 			if (grid->GetRowLabelValue(row) != rowLabel)
 				grid->SetRowLabelValue(row, rowLabel);
-			for (int col = 0; col < 8; ++col)
+			const bool available = row < static_cast<int>(bytes.size());
+			if (includeHex)
 			{
-				const bool available = row < static_cast<int>(bytes.size());
-				const bool set = available && (bytes[row] & (1 << (7 - col)));
+				const wxString value = available ? wxString::Format("%02X", static_cast<unsigned>(bytes[row])) : "";
+				const wxColour colour = available && row < static_cast<int>(dirty.size()) && dirty[row] ?
+					wxColour(255, 221, 127) : grid->GetDefaultCellBackgroundColour();
+				if (grid->GetCellValue(row, 0) != value) grid->SetCellValue(row, 0, value);
+				if (grid->GetCellBackgroundColour(row, 0) != colour) grid->SetCellBackgroundColour(row, 0, colour);
+			}
+			for (int bitColumn = 0; bitColumn < 8; ++bitColumn)
+			{
+				const int col = bitColumn + (includeHex ? 1 : 0);
+				const bool set = available && (bytes[row] & (1 << (7 - bitColumn)));
 				const wxString value = available ? (set ? "1" : "0") : "";
 				if (grid->GetCellValue(row, col) != value)
 				{
 					grid->SetCellValue(row, col, value);
-					grid->SetCellBackgroundColour(row, col,
-						available ? (set ? *wxGREEN : *wxRED) : grid->GetDefaultCellBackgroundColour());
 				}
+				const wxColour colour = available ? (set ? *wxGREEN : *wxRED) : grid->GetDefaultCellBackgroundColour();
+				if (grid->GetCellBackgroundColour(row, col) != colour) grid->SetCellBackgroundColour(row, col, colour);
 			}
 		}
 		grid->EndBatch();
 	};
-	updateGrid(m_grid3, selected.indications);
-	updateGrid(m_grid31, selected.controls);
+	updateGrid(m_grid3, selected.indications, selected.indicationDirty, true);
+	updateGrid(m_grid31, selected.controls, {}, false);
 	m_staticTextMasterStatus->SetLabel(running && !poll_tracking_enabled_ ? "Master tracking disabled"
 		: selected.connected ? "Master connected" : "Master disconnected");
 	m_staticTextLastMasterIp->SetLabel(selected.master.empty() ? wxString("--") : wxString(selected.master));

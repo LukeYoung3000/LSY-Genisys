@@ -173,6 +173,11 @@ namespace LSY
 		return value;
 	}
 
+	bool DataFrame::IsByteDirty(uint64_t byte_offset) const
+	{
+		return byte_offset < num_bytes_ && bytes_api[byte_offset] != bytes_ack[byte_offset];
+	}
+
 
 
 

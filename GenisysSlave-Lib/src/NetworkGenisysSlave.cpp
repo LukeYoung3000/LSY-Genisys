@@ -238,7 +238,7 @@ namespace LSY
 		}
 		else
 		{
-			source_ip_str = std::string(source_ip_buf);
+			source_ip_str = std::string(source_ip_buf) + ":" + std::to_string(ntohs(sender_addr.sin_port));
 			// Log Senders Details
 			Logging::LogDebugF("NetworkGenisysSlave::ServerLoop: [%d] Received Datagram From: [%s]:[%d]", configuration_.server_port_, source_ip, ntohs(sender_addr.sin_port));
 		}

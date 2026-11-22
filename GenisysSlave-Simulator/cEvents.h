@@ -39,11 +39,14 @@ public:
 		int id;
 		int frameSize;
 		uint8_t responseMode = 0x04;
+		bool alwaysRecallResponse = false;
+		bool includeRecallMode = true;
 	};
 	struct SlaveSnapshot
 	{
 		std::vector<uint8_t> indications;
 		std::vector<uint8_t> controls;
+		std::vector<bool> indicationDirty;
 		std::string master;
 		std::string mode;
 		uint64_t responses = 0;
@@ -55,6 +58,7 @@ public:
 		int row;
 		int bit;
 		int mode;
+		int value = -1;
 	};
 	std::vector<SlaveConfig> slaves_{{1, 125}};
 	std::map<int, bool> master_connections_;
@@ -108,6 +112,7 @@ public:
 	void StartStopServerEvent(wxCommandEvent& event) override;
 	void ApplyModeByteEvent(wxCommandEvent& event) override;
 	void GridClickEvent(wxGridEvent& event) override;
+	void GridDoubleClickEvent(wxGridEvent& event) override;
 	void MenuHelpAboutOnMenuSelection(wxCommandEvent& event) override;
 	void MenuHelpLogOnMenuSelection(wxCommandEvent& event) override;
 	void MenuHelpProtocolLogOnMenuSelection(wxCommandEvent& event) override;

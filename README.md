@@ -60,6 +60,12 @@ Note: The TCP server (slave) will only accept 1 TCP client (master) connection a
 
 **Frame Size:** Is the number of data bytes hosted on the Genisys slave.
 
+**Always send recall response:** Makes every poll for the selected slave ID return the full indication table instead of only changed bytes.
+
+**Include mode byte in recall:** Includes the configured response mode byte in explicit recalls and full-table poll responses for the selected slave ID. This is enabled by default.
+
+**Indication data:** Click a bit to toggle it, or double-click a Hex cell to edit the complete byte. A yellow Hex cell indicates data that differs from the last value acknowledged by the master.
+
 **Start/Stop:** Toggles the Genisys slave server to start and stop.
 
 **Last Master IP:** Shows the IP address of the last received message from a Genisys master.

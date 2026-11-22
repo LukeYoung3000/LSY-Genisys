@@ -89,6 +89,70 @@ bool ProtocolLoggingTests()
 	return passed;
 }
 
+bool ContainsPair(const std::vector<uint8_t>& message, uint8_t first, uint8_t second)
+{
+	for (size_t i = 0; i + 1 < message.size(); ++i)
+		if (message[i] == first && message[i + 1] == second) return true;
+	return false;
+}
+
+bool SlaveFeatureTests()
+{
+	auto indications1 = std::make_shared<DataFrame>("Indications 1", 2);
+	auto controls1 = std::make_shared<DataFrame>("Controls 1", 2);
+	auto indications2 = std::make_shared<DataFrame>("Indications 2", 2);
+	auto controls2 = std::make_shared<DataFrame>("Controls 2", 2);
+	ProtocolGenisysSlave protocol;
+	if (!protocol.AddDataFrame(1, indications1, controls1) || !protocol.AddDataFrame(2, indications2, controls2) ||
+		protocol.SetAlwaysRecallResponse(3, true) || protocol.SetRecallModeByteEnabled(3, false)) return false;
+
+	std::vector<std::string> sessions;
+	protocol.AddEventCallback([&sessions](uint8_t, std::string endpoint, ProtocolGenisysSlave::CALLBACKEVENT event)
+		{
+			sessions.push_back((event == ProtocolGenisysSlave::CALLBACKEVENT::MASTER_CONNECTED ? "+" : "-") + endpoint);
+		});
+	indications1->WriteByte(0, 0x12);
+	std::vector<uint8_t> message{0xFB, 0x01, 0xF6};
+	if (!protocol.ProcessMessages(message, "127.0.0.1:5000") || message.empty() || message[0] != 0xF2 ||
+		!ContainsPair(message, 0x00, 0x12) || !ContainsPair(message, 0xE0, 0x04) ||
+		sessions != std::vector<std::string>{"+127.0.0.1:5000"}) return false;
+
+	message = {0xFA, 0x01, 0x83, 0x60, 0xF6};
+	if (!protocol.ProcessMessages(message, "127.0.0.1:5000")) return false;
+	message = {0xFB, 0x01, 0xF6};
+	if (!protocol.ProcessMessages(message, "127.0.0.1:5000") || message.size() != 3 || message[0] != 0xF1) return false;
+
+	message = {0xFB, 0x01, 0xF6};
+	if (!protocol.ProcessMessages(message, "127.0.0.1:5001") || message.empty() || message[0] != 0xF2 ||
+		sessions != std::vector<std::string>{"+127.0.0.1:5000", "-127.0.0.1:5000", "+127.0.0.1:5001"}) return false;
+
+	if (!protocol.SetAlwaysRecallResponse(2, true) || !protocol.SetRecallModeByteEnabled(2, false)) return false;
+	message = {0xFB, 0x02, 0xF6};
+	if (!protocol.ProcessMessages(message, "127.0.0.1:6000") || message.empty() || message[0] != 0xF2 || ContainsPair(message, 0xE0, 0x04)) return false;
+	message = {0xFA, 0x02, 0x83, 0x90, 0xF6};
+	if (!protocol.ProcessMessages(message, "127.0.0.1:6000")) return false;
+	message = {0xFB, 0x02, 0xF6};
+	if (!protocol.ProcessMessages(message, "127.0.0.1:6000") || message.empty() || message[0] != 0xF2 || ContainsPair(message, 0xE0, 0x04)) return false;
+
+	message = {0xFD, 0x02, 0x81, 0xA0, 0xF6};
+	if (!protocol.ProcessMessages(message, "127.0.0.1:6000") || message.empty() || message[0] != 0xF2 || ContainsPair(message, 0xE0, 0x04)) return false;
+	if (!protocol.SetRecallModeByteEnabled(2, true)) return false;
+	message = {0xFD, 0x02, 0x81, 0xA0, 0xF6};
+	return protocol.ProcessMessages(message, "127.0.0.1:6000") && ContainsPair(message, 0xE0, 0x04);
+}
+
+bool DirtyIndicationTests()
+{
+	DataFrame frame("Indications", 2);
+	std::vector<uint64_t> offsets;
+	std::vector<uint8_t> values;
+	if (frame.IsByteDirty(0) || frame.IsByteDirty(2) || !frame.WriteByte(0, 0x12) || !frame.IsByteDirty(0) ||
+		!frame.GetUpdates(offsets, values) || !frame.IsByteDirty(0) || !frame.DataAck() || frame.IsByteDirty(0)) return false;
+	if (!frame.WriteByte(0, 0x34) || !frame.GetUpdates(offsets, values) || !frame.WriteByte(0, 0x35) ||
+		!frame.DataAck() || !frame.IsByteDirty(0)) return false;
+	return frame.WriteByte(0, 0x34) && !frame.IsByteDirty(0);
+}
+
 
 int main(int argc, char* argv[])
 {
@@ -110,6 +174,13 @@ int main(int argc, char* argv[])
 	{
 		bool passed = ModeByteTests();
 		std::cout << (passed ? "Mode byte tests passed" : "Mode byte tests failed") << std::endl;
+		return passed ? 0 : 1;
+	}
+
+	if (argc > 1 && std::string(argv[1]) == "--slave-feature-tests")
+	{
+		bool passed = SlaveFeatureTests() && DirtyIndicationTests();
+		std::cout << (passed ? "Slave feature tests passed" : "Slave feature tests failed") << std::endl;
 		return passed ? 0 : 1;
 	}
 

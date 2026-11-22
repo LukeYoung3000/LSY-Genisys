@@ -127,6 +127,11 @@ cFrame::cFrame( wxWindow* parent, wxWindowID id, const wxString& title, const wx
 	addField(genisysFields, "Frame size (bytes)", m_textFrameSize);
 
 	setup->Add(genisysFields, 0, wxEXPAND | wxBOTTOM, gap);
+	m_alwaysRecallResponse = new wxCheckBox(sidebar, wxID_ANY, "Always send recall response");
+	m_includeRecallMode = new wxCheckBox(sidebar, wxID_ANY, "Include mode byte in recall");
+	m_includeRecallMode->SetValue(true);
+	setup->Add(m_alwaysRecallResponse, 0, wxBOTTOM, gap / 2);
+	setup->Add(m_includeRecallMode, 0, wxBOTTOM, gap);
 	m_saveSlave = new wxButton(sidebar, wxID_ANY, "Save slave");
 	setup->Add(m_saveSlave, 0, wxBOTTOM, gap);
 
@@ -170,7 +175,7 @@ cFrame::cFrame( wxWindow* parent, wxWindowID id, const wxString& title, const wx
 	m_grid3 = new wxGrid( m_panel1, wxID_ANY, wxDefaultPosition, FromDIP(wxSize(340, 240)), wxVSCROLL );
 
 	// Grid
-	m_grid3->CreateGrid( 125, 8 );
+	m_grid3->CreateGrid( 125, 9 );
 	m_grid3->EnableEditing( false );
 	m_grid3->EnableGridLines( true );
 	m_grid3->SetGridLineColour( wxColour(223, 231, 240) );
@@ -178,7 +183,7 @@ cFrame::cFrame( wxWindow* parent, wxWindowID id, const wxString& title, const wx
 	m_grid3->SetMargins( 0, 0 );
 
 	// Columns
-	m_grid3->SetColSize( 0, 30 );
+	m_grid3->SetColSize( 0, 42 );
 	m_grid3->SetColSize( 1, 30 );
 	m_grid3->SetColSize( 2, 30 );
 	m_grid3->SetColSize( 3, 30 );
@@ -186,16 +191,18 @@ cFrame::cFrame( wxWindow* parent, wxWindowID id, const wxString& title, const wx
 	m_grid3->SetColSize( 5, 30 );
 	m_grid3->SetColSize( 6, 30 );
 	m_grid3->SetColSize( 7, 30 );
+	m_grid3->SetColSize( 8, 30 );
 	m_grid3->EnableDragColMove( false );
 	m_grid3->EnableDragColSize( false );
-	m_grid3->SetColLabelValue( 0, wxT("Bit 7") );
-	m_grid3->SetColLabelValue( 1, wxT("Bit 6") );
-	m_grid3->SetColLabelValue( 2, wxT("Bit 5") );
-	m_grid3->SetColLabelValue( 3, wxT("Bit 4") );
-	m_grid3->SetColLabelValue( 4, wxT("Bit 3") );
-	m_grid3->SetColLabelValue( 5, wxT("Bit 2") );
-	m_grid3->SetColLabelValue( 6, wxT("Bit 1") );
-	m_grid3->SetColLabelValue( 7, wxT("Bit 0") );
+	m_grid3->SetColLabelValue( 0, wxT("Hex") );
+	m_grid3->SetColLabelValue( 1, wxT("Bit 7") );
+	m_grid3->SetColLabelValue( 2, wxT("Bit 6") );
+	m_grid3->SetColLabelValue( 3, wxT("Bit 5") );
+	m_grid3->SetColLabelValue( 4, wxT("Bit 4") );
+	m_grid3->SetColLabelValue( 5, wxT("Bit 3") );
+	m_grid3->SetColLabelValue( 6, wxT("Bit 2") );
+	m_grid3->SetColLabelValue( 7, wxT("Bit 1") );
+	m_grid3->SetColLabelValue( 8, wxT("Bit 0") );
 	m_grid3->SetColLabelAlignment( wxALIGN_CENTER, wxALIGN_CENTER );
 
 	// Rows
@@ -558,6 +565,7 @@ cFrame::cFrame( wxWindow* parent, wxWindowID id, const wxString& title, const wx
 	m_toggleStartStop->Connect( wxEVT_COMMAND_TOGGLEBUTTON_CLICKED, wxCommandEventHandler( cFrame::StartStopServerEvent ), NULL, this );
 	m_buttonApplyModeByte->Connect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( cFrame::ApplyModeByteEvent ), NULL, this );
 	m_grid3->Connect( wxEVT_GRID_CELL_LEFT_CLICK, wxGridEventHandler( cFrame::GridClickEvent ), NULL, this );
+	m_grid3->Connect( wxEVT_GRID_CELL_LEFT_DCLICK, wxGridEventHandler( cFrame::GridDoubleClickEvent ), NULL, this );
 	MenuHelp->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( cFrame::MenuHelpLogOnMenuSelection ), this, MenuHelpLog->GetId());
 	MenuHelp->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( cFrame::MenuHelpProtocolLogOnMenuSelection ), this, MenuHelpProtocolLog->GetId());
 	MenuHelp->Bind(wxEVT_COMMAND_MENU_SELECTED, wxCommandEventHandler( cFrame::MenuHelpAboutOnMenuSelection ), this, MenuHelpAbout->GetId());
@@ -613,5 +621,6 @@ cFrame::~cFrame()
 	m_toggleStartStop->Disconnect( wxEVT_COMMAND_TOGGLEBUTTON_CLICKED, wxCommandEventHandler( cFrame::StartStopServerEvent ), NULL, this );
 	m_buttonApplyModeByte->Disconnect( wxEVT_COMMAND_BUTTON_CLICKED, wxCommandEventHandler( cFrame::ApplyModeByteEvent ), NULL, this );
 	m_grid3->Disconnect( wxEVT_GRID_CELL_LEFT_CLICK, wxGridEventHandler( cFrame::GridClickEvent ), NULL, this );
+	m_grid3->Disconnect( wxEVT_GRID_CELL_LEFT_DCLICK, wxGridEventHandler( cFrame::GridDoubleClickEvent ), NULL, this );
 
 }
