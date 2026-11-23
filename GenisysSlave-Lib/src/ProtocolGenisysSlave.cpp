@@ -249,9 +249,41 @@ namespace LSY
 		// Get Genisys Header Byte
 		uint8_t msg_type					= gen_msg_buffer[GEN_MSG_TYPE_BYTE];
 		uint8_t slave_address_from_master	= gen_msg_buffer[GEN_SLAVE_ADDR_BYTE];
-		uint8_t crc_low						= 0;
-		uint8_t crc_high					= 0;
+		const size_t message_size = gen_msg_buffer.size();
+		switch (msg_type)
+		{
+		case GEN_MSG_TYPE_POLL:
+			if (message_size != 3 && message_size != 5)
+				return false;
+			break;
+		case GEN_MSG_TYPE_RECALL:
+		case GEN_MSG_TYPE_ACK_SLAVE:
+			if (message_size != 5)
+				return false;
+			break;
+		case GEN_MSG_TYPE_CONTROL:
+			if (message_size < 7 || message_size % 2 == 0)
+				return false;
+			break;
+		default:
+			return false;
+		}
 
+		// An ordinary poll has no CRC. Other supported requests carry it
+		// immediately before the terminator, low byte first.
+		if (message_size != 3)
+		{
+			const auto crc_position = gen_msg_buffer.end() - 3;
+			const std::vector<uint8_t> payload(gen_msg_buffer.begin(), crc_position);
+			uint8_t crc_low = 0;
+			uint8_t crc_high = 0;
+			if (!CalculateCRC(payload, &crc_low, &crc_high) ||
+				crc_low != crc_position[0] || crc_high != crc_position[1])
+			{
+				Logging::LogDebugF("ProtocolGenisysSlave::ProcessMessage: Invalid request CRC");
+				return false;
+			}
+		}
 
 		// Check That Slave Address From Master Exists In Stored DataFrames
 		if (!slave_data.count(slave_address_from_master))
@@ -265,13 +297,6 @@ namespace LSY
 
 
 		const bool track_polls = poll_timeout_ != std::chrono::milliseconds::zero();
-		// Only the standard and secure poll lengths qualify for poll tracking.
-		if (track_polls && msg_type == GEN_MSG_TYPE_POLL &&
-			gen_msg_buffer.size() != 3 && gen_msg_buffer.size() != 5)
-		{
-			return false;
-		}
-
 		// Increment Received Message Counter For This Slave ID
 		slave_data[slave_address_from_master].recevied_counter++;
 
@@ -295,14 +320,6 @@ namespace LSY
 			// Poll Message Should Be 5 Bytes Long For Secure Polls
 			bool is_secure_poll = (gen_msg_buffer.size() == 5);
 
-			if (is_secure_poll)
-			{
-				crc_low = gen_msg_buffer[2];
-				crc_high = gen_msg_buffer[3];
-
-				// To Do: Check That CRC From Master Is Correct
-			}
-			
 			// Log Recived Message
 			LogGenisysMsg(master_device, slave_address_from_master, true, msg_type, false, 0, gen_msg_buffer, (is_secure_poll ? "SECURE_POLL" : "POLL"));
 
@@ -384,9 +401,6 @@ namespace LSY
 
 		else if (msg_type == GEN_MSG_TYPE_RECALL)
 		{
-			crc_low = gen_msg_buffer[2];
-			crc_high = gen_msg_buffer[3];
-
 
 			// Log Recived Message
 			LogGenisysMsg(master_device, slave_address_from_master, true, msg_type, false, 0, gen_msg_buffer, "");
@@ -436,9 +450,6 @@ namespace LSY
 
 		else if (msg_type == GEN_MSG_TYPE_ACK_SLAVE)
 		{
-			crc_low = gen_msg_buffer[2];
-			crc_high = gen_msg_buffer[3];
-
 			// Log Recived Message
 			LogGenisysMsg(master_device, slave_address_from_master, true, msg_type, false, 0, gen_msg_buffer, "");
 
@@ -460,22 +471,6 @@ namespace LSY
 		else if (msg_type == GEN_MSG_TYPE_CONTROL)
 		{
 
-			// Check: Message Should Be At Least 7 Bytes Long
-			// FC SLAVE_ID MODE_BYTE_OFFSET MODE_BYTE_VALUE CRC_LOW CRC_HIGH F6
-			if (gen_msg_buffer.size() < 7)
-			{
-				// Error - Control Message Should Be 7 Bytes Long Or More
-				return false;
-			}
-
-			// Check: Message Should Have An Odd Number Of Bytes
-			if ((gen_msg_buffer.size() % 2) != 1)
-			{
-				// Error - Control Message Should Contain An Odd Number Of Bytes
-				return false;
-			}
-
-
 			// Save a copy of the raw recived data for logging purposes
 			auto recv_msg = gen_msg_buffer;
 
@@ -491,15 +486,8 @@ namespace LSY
 			gen_msg_buffer.erase(gen_msg_buffer.begin());
 			gen_msg_buffer.erase(gen_msg_buffer.begin());
 
-			// Remove End Of Message Byte
-			// This Has Been Check As "F6" In IsMasterMessageValid()
-			gen_msg_buffer.pop_back();
-
-			// Get CRC Bytes From Last 2 Chars
-			// To Do: Should Check CRC Is Correct
-			crc_high = gen_msg_buffer.back(); gen_msg_buffer.pop_back();
-			crc_low = gen_msg_buffer.back(); gen_msg_buffer.pop_back();
-
+			// Remove the validated CRC and terminator.
+			gen_msg_buffer.resize(gen_msg_buffer.size() - 3);
 
 			// Control Bytes And Values
 			// Loop Through Remaining Data And Save Updates

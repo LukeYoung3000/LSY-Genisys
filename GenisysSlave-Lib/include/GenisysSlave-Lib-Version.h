@@ -2,4 +2,4 @@
 
 #include <string>
 
-const char genisys_slave_lib_version[] = "0.6.0.8";
+const char genisys_slave_lib_version[] = "0.6.0.9";
