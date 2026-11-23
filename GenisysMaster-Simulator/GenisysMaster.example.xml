@@ -15,6 +15,9 @@
   <Polling enabled="true" secure="true" interval-ms="500"
            response-timeout-ms="500" retries="2" recovery-interval-ms="1000" />
 
+  <!-- Send one full control frame after every offline-to-online transition. -->
+  <Controls flush-on-connect="true" />
+
   <!-- Required: at least one slave. IDs must be unique (1..255).
        ip: numeric IPv4 address; port: 1..65535, also the expected response source.
        frame-bytes: 1..224, used for separate indication and control frames.

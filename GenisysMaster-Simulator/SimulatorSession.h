@@ -15,6 +15,7 @@ public:
         std::shared_ptr<LSY::MasterDataFrame> indications;
         ConsoleControls controls;
         LSY::NetworkGenisysMaster::SlaveStatus status;
+        bool flushPending = false;
         std::chrono::system_clock::time_point lastUpdate;
         std::vector<uint8_t> previous;
         std::vector<std::array<int64_t, 8>> changedAt;
@@ -33,6 +34,7 @@ public:
     int64_t elapsed() const { return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - clock_).count(); }
     void applyConfiguration(const ConsoleConfiguration& configuration);
     void setTransportConfiguration(const LSY::NetworkGenisysMaster::Config& configuration);
+    void setFlushControlsOnConnect(bool enabled);
     void start();
     void stop();
     void process();
@@ -52,5 +54,7 @@ private:
     std::string lastError_;
     const std::chrono::steady_clock::time_point clock_ = std::chrono::steady_clock::now();
     Slave* mutableSlave(int id);
+    bool controlsPending() const;
+    void dispatchControls();
     void log(int id, const std::string& message, const std::string& category = "System", int severity = 0);
 };

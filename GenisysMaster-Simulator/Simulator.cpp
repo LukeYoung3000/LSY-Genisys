@@ -166,6 +166,9 @@ public:
         recallAll_ = Action(panel, recalls, "Recall all", [this] { session_.recallAll(); });
         auto* modeRow = new wxBoxSizer(wxHORIZONTAL);
         right->Add(modeRow, 0, wxEXPAND | wxTOP, 4);
+        flushOnConnect_ = new wxCheckBox(panel, wxID_ANY, "Flush controls when slave comes online");
+        flushOnConnect_->SetValue(true);
+        right->Add(flushOnConnect_, 0, wxEXPAND | wxTOP | wxBOTTOM, 4);
         includeMode_ = new wxCheckBox(panel, wxID_ANY, "Include mode");
         mode_ = new wxSpinCtrl(panel, wxID_ANY, "", wxDefaultPosition, wxSize(65, -1), wxSP_ARROW_KEYS, 0, 255, 5);
         modeRow->Add(includeMode_, 0, wxALIGN_CENTER_VERTICAL | wxRIGHT, 5);
@@ -219,6 +222,7 @@ public:
     void Start()
     {
         session_.setTransportConfiguration(Settings());
+        session_.setFlushControlsOnConnect(flushOnConnect_->GetValue());
         session_.start();
         PaintState();
     }
@@ -244,7 +248,7 @@ private:
     wxNotebook* transport_;
     wxComboBox* com_;
     wxChoice *parity_, *filter_;
-    wxCheckBox *automatic_, *secure_, *dtr_, *rts_, *includeMode_, *follow_;
+    wxCheckBox *automatic_, *secure_, *dtr_, *rts_, *flushOnConnect_, *includeMode_, *follow_;
     wxSpinCtrl *port_, *stopBits_, *writeTimeout_, *interval_, *timeout_, *retries_, *recovery_, *mode_;
     wxTextCtrl *ip_, *log_, *baud_;
     wxListBox* slaves_;
@@ -383,6 +387,7 @@ private:
         stopBits_->SetValue(net.stop_bits_); writeTimeout_->SetValue(net.write_timeout_ms_);
         dtr_->SetValue(net.dtr_enable_); rts_->SetValue(net.rts_enable_);
         automatic_->SetValue(net.automatic_polling_); secure_->SetValue(net.secure_poll_);
+        flushOnConnect_->SetValue(config.flush_controls_on_connect);
         interval_->SetValue(net.poll_interval_ms_); timeout_->SetValue(net.response_timeout_ms_);
         retries_->SetValue(net.retry_count_); recovery_->SetValue(net.recovery_interval_ms_);
         slaves_->Clear();
@@ -414,6 +419,7 @@ private:
         if (!adding && !selected) return;
         auto config = session_.configuration();
         config.network = Settings();
+        config.flush_controls_on_connect = flushOnConnect_->GetValue();
         const bool serial = config.network.connection_type_ == Transport::SERIAL;
         ConsoleSlaveConfiguration item = adding ? ConsoleSlaveConfiguration{} : selected->configuration;
         if (adding)
@@ -483,9 +489,12 @@ private:
         for (int row = 0; row < rows; ++row)
         {
             const auto value = (*(draft ? slave->controls.frame : slave->indications))[row];
-            grid->SetRowLabelValue(row, wxString::Format("Byte %d", row));
-            grid->SetCellValue(row, 0, wxString::Format("%02X", unsigned(value)));
-            grid->SetCellBackgroundColour(row, 0, draft && slave->controls.ByteChanged(row) ? wxColour(255, 221, 127) : *wxWHITE);
+            const auto label = wxString::Format("Byte %d", row);
+            const auto hex = wxString::Format("%02X", unsigned(value));
+            const wxColour hexColour = draft && slave->controls.ByteChanged(row) ? wxColour(255, 221, 127) : *wxWHITE;
+            if (grid->GetRowLabelValue(row) != label) grid->SetRowLabelValue(row, label);
+            if (grid->GetCellValue(row, 0) != hex) grid->SetCellValue(row, 0, hex);
+            if (grid->GetCellBackgroundColour(row, 0) != hexColour) grid->SetCellBackgroundColour(row, 0, hexColour);
             for (int col = 1; col < 9; ++col)
             {
                 const int bit = 8 - col;
@@ -493,8 +502,9 @@ private:
                 wxColour colour = on ? wxColour(44, 232, 40) : wxColour(255, 70, 70);
                 if (!draft && !slave->status.indications_current) colour = wxColour(223, 226, 230);
                 else if (!draft && session_.elapsed() - slave->changedAt[row][bit] < 1200) colour = wxColour(255, 221, 127);
-                grid->SetCellValue(row, col, on ? "1" : "0");
-                grid->SetCellBackgroundColour(row, col, colour);
+                const wxString text = on ? "1" : "0";
+                if (grid->GetCellValue(row, col) != text) grid->SetCellValue(row, col, text);
+                if (grid->GetCellBackgroundColour(row, col) != colour) grid->SetCellBackgroundColour(row, col, colour);
             }
         }
         grid->EndBatch();
@@ -509,6 +519,7 @@ private:
         transport_->Enable(!running);
         for (auto* field : {interval_, timeout_, retries_, recovery_}) field->Enable(!running);
         automatic_->Enable(!running); secure_->Enable(!running);
+        flushOnConnect_->Enable(!running);
         add_->Enable(!running); edit_->Enable(!running && slave); remove_->Enable(!running && slave);
         recall_->Enable(running && slave); recallAll_->Enable(running);
         start_->SetLabel(running ? "Stop" : "Start");
@@ -609,7 +620,11 @@ private:
         try
         {
             auto config = session_.configuration();
-            if (!session_.running()) config.network = Settings();
+            if (!session_.running())
+            {
+                config.network = Settings();
+                config.flush_controls_on_connect = flushOnConnect_->GetValue();
+            }
             ValidateConsoleConfiguration(config);
             const auto& net = config.network;
             pugi::xml_document document;
@@ -640,6 +655,8 @@ private:
             polling.append_attribute("response-timeout-ms") = net.response_timeout_ms_;
             polling.append_attribute("retries") = net.retry_count_;
             polling.append_attribute("recovery-interval-ms") = net.recovery_interval_ms_;
+            auto controls = root.append_child("Controls");
+            controls.append_attribute("flush-on-connect") = config.flush_controls_on_connect;
             auto console = root.append_child("Console");
             console.append_attribute("plain") = config.plain;
             console.append_attribute("recall-all") = config.recall_all;

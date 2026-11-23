@@ -13,6 +13,7 @@ struct ConsoleConfiguration
 {
 	LSY::NetworkGenisysMaster::Config network;
 	std::vector<ConsoleSlaveConfiguration> slaves;
+    bool flush_controls_on_connect = true;
 	bool plain = false;
 	bool recall_all = false;
 	unsigned wait_ms = 3000;
