@@ -238,6 +238,8 @@ namespace LSY
 		}
 		else
 		{
+			// IMPORTANT: Session identity must use the datagram's actual source endpoint.
+			// The configured destination port only redirects replies and must not affect master tracking.
 			source_ip_str = std::string(source_ip_buf) + ":" + std::to_string(ntohs(sender_addr.sin_port));
 			// Log Senders Details
 			Logging::LogDebugF("NetworkGenisysSlave::ServerLoop: [%d] Received Datagram From: [%s]:[%d]", configuration_.server_port_, source_ip, ntohs(sender_addr.sin_port));
