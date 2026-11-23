@@ -22,17 +22,18 @@ int main()
 		ConsoleConfiguration settings;
 		file.Write("<?xml version='1.0'?><!--comment--><GenisysMaster version='1'>" + slave + "</GenisysMaster>");
 		LoadConsoleConfiguration(file.path, settings);
-		Check(settings.slaves.size() == 1 && settings.slaves[0].id == 34 && settings.network.poll_interval_ms_ == 500, "Minimal XML uses documented defaults");
+		Check(settings.slaves.size() == 1 && settings.slaves[0].id == 34 && settings.network.poll_interval_ms_ == 500 &&
+			settings.flush_controls_on_connect, "Minimal XML uses documented defaults");
 		file.Write("<GenisysMaster version='1'><Udp local-ip='127.0.0.1' receive-port='0'/>"
 			"<Polling enabled='false' secure='false' interval-ms='25' response-timeout-ms='40' retries='0' recovery-interval-ms='50'/>"
-			"<Console plain='true' recall-all='true' wait-ms='1234' run-ms='0'/>"
+			"<Controls flush-on-connect='false'/><Console plain='true' recall-all='true' wait-ms='1234' run-ms='0'/>"
 			"<Slaves><Slave id='034' ip='127.0.0.1' port='7169' frame-bytes='224'/>"
 			"<Slave id='0x23' ip='127.0.0.1' port='7169' frame-bytes='32'/></Slaves></GenisysMaster>");
 		LoadConsoleConfiguration(file.path, settings);
 		Check(settings.slaves.size() == 2 && settings.slaves[0].id == 34 && settings.slaves[1].id == 35 &&
 			settings.slaves[0].frame_bytes == 224 && settings.network.receive_port_ == 0 &&
 			!settings.network.automatic_polling_ && !settings.network.secure_poll_ && settings.network.retry_count_ == 0 &&
-			settings.network.response_timeout_ms_ == 40 && settings.plain && settings.recall_all && settings.wait_ms == 1234,
+			settings.network.response_timeout_ms_ == 40 && !settings.flush_controls_on_connect && settings.plain && settings.recall_all && settings.wait_ms == 1234,
 			"Load all settings, shared endpoints, decimal and hex values");
 		const std::vector<std::string> invalid{
 			"<GenisysMaster>",
@@ -42,6 +43,7 @@ int main()
 			"<GenisysMaster version='1'><Polling retries='-1'/>" + slave + "</GenisysMaster>",
 			"<GenisysMaster version='1'><Polling retries='101'/>" + slave + "</GenisysMaster>",
 			"<GenisysMaster version='1'><Polling enabled='yes'/>" + slave + "</GenisysMaster>",
+			"<GenisysMaster version='1'><Controls flush-on-connect='yes'/>" + slave + "</GenisysMaster>",
 			"<GenisysMaster version='1'><Polling interval-ms='0'/>" + slave + "</GenisysMaster>",
 			"<GenisysMaster version='1'><Udp receive-port='65536'/>" + slave + "</GenisysMaster>",
 			"<GenisysMaster version='1'><Udp local-ip='not-an-ip'/>" + slave + "</GenisysMaster>",

@@ -49,6 +49,20 @@ int main()
 	{
 		{
 			Fixture f;
+			Check(f.master->RequestRecall(3), "Start a polling transaction before an explicit control");
+			f.controls.frame->WriteByte(0, 0x21);
+			Check(f.controls.Queue(false) && f.controls.Queued(), "Queue control while the transport is busy");
+			f.controls.frame->WriteByte(0, 0x22);
+			f.Until([&] { Network::SlaveStatus status; return f.master->GetSlaveStatus(3, status) && !status.busy; });
+			Check(f.controls.Dispatch(*f.master, 3), "Dispatch queued control at the next idle interval");
+			f.Until([&] { return f.controls.Result() == "ACKNOWLEDGED"; });
+			Check((*f.peer.control_frames[3])[0] == 0x21 && f.controls.Dirty(), "Queued control keeps its click-time snapshot");
+			Check(f.controls.Send(*f.master, 3, false), "Send edits made after the queued snapshot");
+			f.Until([&] { return f.controls.Result() == "ACKNOWLEDGED"; });
+			Check((*f.peer.control_frames[3])[0] == 0x22 && !f.controls.Dirty(), "Later edits remain staged for a subsequent send");
+		}
+		{
+			Fixture f;
 			f.controls.frame->WriteByte(0, 0x81); f.controls.frame->WriteBit(1, 3, true);
 			Check(f.controls.Dirty() && f.peer.requests[0xFC] == 0, "Staging edits never transmits controls");
 			Check(f.controls.Send(*f.master, 3, false), "Send changed controls");
@@ -92,7 +106,8 @@ int main()
 			Check(!f.controls.Dirty() && f.peer.requests[0xFC] == 1 && f.peer.requests[0xFA] == 3,
 				"Control acknowledgement survives later FA timeout; only FA is retried");
 		}
-		std::cout << "PASS: staged controls, explicit byte/bit/full/mode sends and slave callbacks\n"
+		std::cout << "PASS: controls queue behind active traffic and retain their click-time snapshot\n"
+			"PASS: staged controls, explicit byte/bit/full/mode sends and slave callbacks\n"
 			"PASS: newer drafts, uncertain outcomes, post-timeout edits and acknowledgement tracking\n"
 			"All ConsoleControls checks passed.\n";
 	}

@@ -21,17 +21,39 @@ public:
 		for (size_t i = 0; i < acknowledged_.size(); ++i) if (ByteChanged(i)) return true;
 		return include_mode && (!mode_acknowledged_ || mode != acknowledged_mode_);
 	}
+	bool Queued() const { return queued_; }
+	bool Active() const { return active_; }
 	const std::string& Result() const { return result_; }
-	bool Send(LSY::NetworkGenisysMaster& network, uint8_t id, bool full)
+	bool Queue(bool full)
 	{
+		if (queued_ || active_) return false;
 		std::vector<uint8_t> snapshot;
 		frame->ReadBytes(0, frame->GetNumBytes(), snapshot);
-		if (!network.RequestControl(id, full, include_mode, mode)) return false;
+		std::vector<uint64_t> offsets; std::vector<uint8_t> values;
+		if (!frame->GetUpdates(offsets, values, full) || (values.empty() && !include_mode)) return false;
 		sent_ = snapshot;
 		sent_mode_ = mode; sent_include_mode_ = include_mode;
+		queued_full_ = full; queued_ = true;
+		result_ = "QUEUED for next idle interval";
+		return true;
+	}
+	bool Dispatch(LSY::NetworkGenisysMaster& network, uint8_t id)
+	{
+		if (!queued_) return false;
+		if (!network.RequestControl(id, queued_full_, sent_include_mode_, sent_mode_))
+		{
+			frame->CancelUpdate(); queued_ = false;
+			result_ = "SEND FAILED before dispatch";
+			return false;
+		}
+		queued_ = false;
 		active_ = true; response_acknowledged_ = false;
 		result_ = "WAITING for control response";
 		return true;
+	}
+	bool Send(LSY::NetworkGenisysMaster& network, uint8_t id, bool full)
+	{
+		return Queue(full) && Dispatch(network, id);
 	}
 	void OnResponse(const LSY::ProtocolGenisysMaster::Response& response)
 	{
@@ -43,6 +65,12 @@ public:
 	}
 	void OnStopped()
 	{
+		if (queued_)
+		{
+			frame->CancelUpdate(); queued_ = false;
+			result_ = "STOPPED before queued control was sent";
+			return;
+		}
 		if (!active_) return;
 		active_ = false;
 		result_ = response_acknowledged_ ? "ACKNOWLEDGED; exchange stopped" : "STOPPED - outcome unknown";
@@ -61,6 +89,6 @@ private:
 	std::vector<uint8_t> acknowledged_, sent_;
 	bool mode_acknowledged_ = false, sent_include_mode_ = false;
 	uint8_t acknowledged_mode_ = 0, sent_mode_ = 0;
-	bool active_ = false, response_acknowledged_ = false;
+	bool queued_ = false, queued_full_ = false, active_ = false, response_acknowledged_ = false;
 	std::string result_ = "Not sent (initial local zeros)";
 };
