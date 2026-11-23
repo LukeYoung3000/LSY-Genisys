@@ -36,7 +36,7 @@ bool ModeByteTests()
 		protocol.SetModeByteReturnValue(2, 0x10))
 		return false;
 
-	std::vector<uint8_t> message = { 0xFC, 0x01, 0xE0, 0x00, 0x00, 0x00, 0xF6 };
+	std::vector<uint8_t> message = { 0xFC, 0x01, 0xE0, 0x00, 0x28, 0x50, 0xF6 };
 	if (!protocol.ProcessMessages(message, "master") || message.size() < 4 ||
 		message[0] != 0xF2 || message[2] != 0xE0 || message[3] != 0x04 ||
 		!protocol.GetSlaveData(1, data) || !data.has_received_mode_byte || data.last_mode_byte_recived != 0)
@@ -44,19 +44,52 @@ bool ModeByteTests()
 
 	if (!protocol.SetModeByteReturnValue(1, 0xFF))
 		return false;
-	message = { 0xFC, 0x01, 0xE0, 0xF0, 0x06, 0x00, 0x00, 0xF6 };
+	message = { 0xFC, 0x01, 0xE0, 0xF0, 0x06, 0xA8, 0x16, 0xF6 };
 	if (!protocol.ProcessMessages(message, "master") || message.size() < 5 ||
 		message[0] != 0xF2 || message[2] != 0xE0 || message[3] != 0xF0 || message[4] != 0x0F ||
 		!protocol.GetSlaveData(1, data) || data.last_mode_byte_recived != 0xF6 || data.mode_byte_return_value != 0xFF)
 		return false;
 
-	message = { 0xFD, 0x01, 0x00, 0x00, 0xF6 };
+	message = { 0xFD, 0x01, 0x81, 0x50, 0xF6 };
 	if (!protocol.ProcessMessages(message, "master") || message.size() < 7 ||
 		message[0] != 0xF2 || message[4] != 0xE0 || message[5] != 0xF0 || message[6] != 0x0F ||
 		!protocol.GetSlaveData(1, data) || data.last_mode_byte_recived != 0xF6)
 		return false;
 
 	return true;
+}
+
+bool InboundCrcTests()
+{
+	auto indications = std::make_shared<DataFrame>("Indications", 1);
+	auto controls = std::make_shared<DataFrame>("Controls", 1);
+	ProtocolGenisysSlave protocol;
+	if (!protocol.AddDataFrame(1, indications, controls) || !indications->WriteByte(0, 0x37))
+		return false;
+
+	auto respondsWith = [&protocol](std::vector<uint8_t> message, uint8_t reply_type)
+		{
+			return protocol.ProcessMessages(message, "master") &&
+				(reply_type == 0 ? message.empty() : !message.empty() && message.front() == reply_type);
+		};
+
+	// An invalid control checksum must leave the control byte unchanged.
+	if (!respondsWith({0xFC, 0x01, 0x00, 0x42, 0xE0, 0xA1, 0xF6}, 0) || (*controls)[0] != 0 ||
+		!respondsWith({0xFC, 0x01, 0x00, 0x42, 0xE1, 0xA1, 0xF6}, 0xF2) || (*controls)[0] != 0x42)
+		return false;
+
+	// The secure poll includes an escaped checksum byte.
+	if (!respondsWith({0xFB, 0x01, 0x83, 0xF0, 0x00, 0xF6}, 0) ||
+		!respondsWith({0xFB, 0x01, 0x82, 0xF0, 0x00, 0xF6}, 0xF2) ||
+		!respondsWith({0xFD, 0x01, 0x80, 0x50, 0xF6}, 0) ||
+		!respondsWith({0xFD, 0x01, 0x81, 0x50, 0xF6}, 0xF2))
+		return false;
+
+	// A rejected acknowledgement leaves the update pending on the next ordinary poll.
+	return respondsWith({0xFA, 0x01, 0x82, 0x60, 0xF6}, 0) &&
+		respondsWith({0xFB, 0x01, 0xF6}, 0xF2) &&
+		respondsWith({0xFA, 0x01, 0x83, 0x60, 0xF6}, 0xF1) &&
+		respondsWith({0xFB, 0x01, 0xF6}, 0xF1);
 }
 
 bool ProtocolLoggingTests()
@@ -73,7 +106,7 @@ bool ProtocolLoggingTests()
 
 	auto process_message = [&protocol]()
 		{
-			std::vector<uint8_t> message = { 0xFC, 0x01, 0xE0, 0x00, 0x00, 0x00, 0xF6 };
+			std::vector<uint8_t> message = { 0xFC, 0x01, 0xE0, 0x00, 0x28, 0x50, 0xF6 };
 			return protocol.ProcessMessages(message, "master");
 		};
 
@@ -110,6 +143,13 @@ int main(int argc, char* argv[])
 	{
 		bool passed = ModeByteTests();
 		std::cout << (passed ? "Mode byte tests passed" : "Mode byte tests failed") << std::endl;
+		return passed ? 0 : 1;
+	}
+
+	if (argc > 1 && std::string(argv[1]) == "--inbound-crc-tests")
+	{
+		bool passed = InboundCrcTests();
+		std::cout << (passed ? "Inbound CRC tests passed" : "Inbound CRC tests failed") << std::endl;
 		return passed ? 0 : 1;
 	}
 
