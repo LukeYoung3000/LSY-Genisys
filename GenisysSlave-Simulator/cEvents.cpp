@@ -624,7 +624,7 @@ void cEvents::RefreshSlaveView()
 		grid->EndBatch();
 	};
 	updateGrid(m_grid3, selected.indications, selected.indicationDirty, true);
-	updateGrid(m_grid31, selected.controls, {}, false);
+	updateGrid(m_grid31, selected.controls, {}, true);
 	m_staticTextMasterStatus->SetLabel(running && !poll_tracking_enabled_ ? "Master tracking disabled"
 		: selected.connected ? "Master connected" : "Master disconnected");
 	m_staticTextLastMasterIp->SetLabel(selected.master.empty() ? wxString("--") : wxString(selected.master));

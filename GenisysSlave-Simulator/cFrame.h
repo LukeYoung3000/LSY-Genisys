@@ -84,7 +84,7 @@ class cFrame : public wxFrame
 
 	public:
 
-		cFrame( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxT("Genisys Slave Application"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 864,655 ), long style = wxDEFAULT_FRAME_STYLE|wxTAB_TRAVERSAL );
+		cFrame( wxWindow* parent, wxWindowID id = wxID_ANY, const wxString& title = wxT("Genisys Slave Application"), const wxPoint& pos = wxDefaultPosition, const wxSize& size = wxSize( 1100,655 ), long style = wxDEFAULT_FRAME_STYLE|wxTAB_TRAVERSAL );
 
 		~cFrame();
 
