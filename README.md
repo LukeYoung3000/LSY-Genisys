@@ -10,6 +10,13 @@ The protocol is typically used for non vital coms between field devices (PLC/RTU
 Genisys is very similar to MODBUS with the main difference being
 Genisys uses event based polling and MODBUS uses full frame polling.
 
+## ☕ Donations
+
+If you find this project useful and would like to support its
+continued development, maintenance and future improvements,
+please consider making a donation. Donations are entirely voluntary and greatly appreciated.
+
+[![Support me on Ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/LY3000)
 
 ## About The Project
 
