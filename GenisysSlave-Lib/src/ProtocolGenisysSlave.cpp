@@ -105,6 +105,22 @@ namespace LSY
 		return true;
 	}
 
+	bool ProtocolGenisysSlave::SetAlwaysRecallResponse(uint8_t slave_id, bool enabled)
+	{
+		const auto slave = slave_data.find(slave_id);
+		if (slave == slave_data.end()) return false;
+		slave->second.always_recall_response = enabled;
+		return true;
+	}
+
+	bool ProtocolGenisysSlave::SetRecallModeByteEnabled(uint8_t slave_id, bool enabled)
+	{
+		const auto slave = slave_data.find(slave_id);
+		if (slave == slave_data.end()) return false;
+		slave->second.include_mode_byte_in_recall = enabled;
+		return true;
+	}
+
 
 
 
@@ -333,7 +349,7 @@ namespace LSY
 			const bool poll_master_changed = track_polls && slave.poll_master != master_device;
 			const bool new_poll_session = track_polls && (!slave.master_connected || poll_master_changed);
 			// A returning master needs the full table even if its identifier is unchanged.
-			const bool get_all_data = has_master_device_changed || new_poll_session;
+			const bool get_all_data = slave.always_recall_response || has_master_device_changed || new_poll_session;
 			if (!slave_data[slave_address_from_master].indication_data_frame->GetUpdates(byte_offsets, values, get_all_data))
 			{
 				// Warning
@@ -365,6 +381,11 @@ namespace LSY
 					// Pack updated table data into bytes
 					gen_msg_responce.push_back((uint8_t)byte_offsets[i]);	// Register Number (Byte Offset)
 					gen_msg_responce.push_back((uint8_t)values[i]);			// Register Value
+				}
+				if (get_all_data && slave.include_mode_byte_in_recall)
+				{
+					gen_msg_responce.push_back(GEN_MODE_BYTE);
+					gen_msg_responce.push_back(slave.mode_byte_return_value);
 				}
 
 				// Calculate CRC
@@ -430,8 +451,11 @@ namespace LSY
 
 			// Mode Byte (From Example)
 			uint8_t mode_byte_value = slave_data[slave_address_from_master].mode_byte_return_value;
-			gen_msg_responce.push_back(GEN_MODE_BYTE);
-			gen_msg_responce.push_back(mode_byte_value);
+			if (slave_data[slave_address_from_master].include_mode_byte_in_recall)
+			{
+				gen_msg_responce.push_back(GEN_MODE_BYTE);
+				gen_msg_responce.push_back(mode_byte_value);
+			}
 
 			// Calculate CRC
 			uint8_t crc_low = 0;
@@ -443,7 +467,9 @@ namespace LSY
 			gen_msg_responce.push_back(crc_high);
 
 			// Log Responce Message
-			LogGenisysMsg(master_device, slave_address_from_master, false, responce_msg_type, true, mode_byte_value, gen_msg_responce, "Log Misses F6 Termination - Will Be Fixed");
+			LogGenisysMsg(master_device, slave_address_from_master, false, responce_msg_type,
+				slave_data[slave_address_from_master].include_mode_byte_in_recall, mode_byte_value,
+				gen_msg_responce, "Log Misses F6 Termination - Will Be Fixed");
 
 		}
 

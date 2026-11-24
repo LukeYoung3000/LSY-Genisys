@@ -51,6 +51,7 @@ namespace LSY
 		bool ReadByte(uint64_t byte_offset, uint8_t & value) const;
 		bool ReadBytes(uint64_t byte_offset, uint64_t num_bytes, std::vector<uint8_t> & values) const;
 		uint8_t operator[](uint64_t byte_offset) const; // ReadByte
+		bool IsByteDirty(uint64_t byte_offset) const;
 
 
 

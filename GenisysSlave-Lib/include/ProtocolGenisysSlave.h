@@ -31,6 +31,8 @@ namespace LSY
 			bool is_control_frame;
 			std::shared_ptr<DataFrame> control_data_frame;
 			uint8_t mode_byte_return_value = (uint8_t)0x04;		// This hardcoded value is how the slave instance will repond with a modebyte after a control or recall frame.
+			bool always_recall_response = false;
+			bool include_mode_byte_in_recall = true;
 
 			// Metrics
 			std::string last_master_device_to_poll_name;		// IP address of the last master device that sent a poll message to this slave, example: "127.0.0.1".
@@ -63,6 +65,8 @@ namespace LSY
 		bool AddDataFrame(uint8_t slave_id, std::shared_ptr<DataFrame>& ind_data_frame_obj, std::shared_ptr<DataFrame>& ctl_data_frame_obj);
 		bool GetSlaveData(uint8_t slave_id, SlaveData& out_slave_data);
 		bool SetModeByteReturnValue(uint8_t slave_id, uint8_t mode_byte_value);
+		bool SetAlwaysRecallResponse(uint8_t slave_id, bool enabled);
+		bool SetRecallModeByteEnabled(uint8_t slave_id, bool enabled);
 
 	public: // Interface To Transport/Network Layers
 		bool ProcessMessages(std::vector<uint8_t> & data_buffer, std::string master_device = "");
